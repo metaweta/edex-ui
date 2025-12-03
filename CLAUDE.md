@@ -82,3 +82,13 @@ The current implementation uses `contextIsolation: false` because many parts of 
 npm run start        # Normal start
 npm run start -- --nointro  # Skip intro animation
 ```
+
+## Open Issues from Upstream (GitSquared/edex-ui)
+
+Issues to potentially fix in this fork:
+
+- **#1167** - Folder names ending with file extension treated as files (`bug`) - **FIXED**
+- **#1054** - Fix CI pipeline for MacOS arm64 target (`bug`, `enhancement`)
+- **#1050** - Support proxies/regulated networks (`bug`, `enhancement`)
+- **#832** - Unhandled display aspect ratios (`bug`)
+- **#630** - UI reload crash when using multiple tabs (`bug`)

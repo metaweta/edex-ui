@@ -429,19 +429,20 @@ class FilesystemDisplay {
                         type = "eDEX-UI keyboards folder";
                         break;
                     default:
-                        let iconName = this.fileIconsMatcher(e.name);
-                        icon = this.icons[iconName];
-                        if (typeof icon === "undefined") {
-                            if (e.type === "file") icon = this.icons.file;
-                            if (e.type === "dir") {
-                                icon = this.icons.dir;
-                                type = "folder";
-                            }
-                            if (typeof icon === "undefined") icon = this.icons.other;
-                        } else if (e.category !== "dir") {
-                            type = iconName.replace("icon-", "");
+                        // Fix for #1167: Check if item is a directory first
+                        // Directories should always use the folder icon, not file icons based on extension
+                        if (e.type === "dir") {
+                            icon = this.icons.dir;
+                            type = "folder";
                         } else {
-                            type = "special folder";
+                            let iconName = this.fileIconsMatcher(e.name);
+                            icon = this.icons[iconName];
+                            if (typeof icon === "undefined") {
+                                if (e.type === "file") icon = this.icons.file;
+                                if (typeof icon === "undefined") icon = this.icons.other;
+                            } else {
+                                type = iconName.replace("icon-", "");
+                            }
                         }
                         break;
                 }
