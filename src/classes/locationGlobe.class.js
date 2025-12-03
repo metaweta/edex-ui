@@ -5,7 +5,7 @@ class LocationGlobe {
         const path = require("path");
 
         this._geodata = require(path.join(__dirname, "assets/misc/grid.json"));
-        require(path.join(__dirname, "assets/vendor/encom-globe.js"));
+        require(path.join(__dirname, "assets/vendor/encom-globe.cjs"));
         this.ENCOM = window.ENCOM;
 
         // Create DOM and include lib

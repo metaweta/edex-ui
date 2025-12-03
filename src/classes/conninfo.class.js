@@ -16,7 +16,11 @@ class Conninfo {
 
         this.current = document.querySelector("#mod_conninfo_innercontainer > h1 > i");
         this.total = document.querySelector("#mod_conninfo_innercontainer > h2 > i");
-        this._pb = require("pretty-bytes");
+        // Load ESM-only package asynchronously
+        this._pb = (bytes) => `${bytes} B`; // Default fallback
+        import("pretty-bytes").then(module => {
+            this._pb = module.default || module;
+        }).catch(e => console.error("Failed to load pretty-bytes:", e));
 
         // Init Smoothie
         let TimeSeries = require("smoothie").TimeSeries;

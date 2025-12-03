@@ -45,16 +45,25 @@ class Netstat {
         this.geoLookup = {
             get: () => null
         };
-        let geolite2 = require("geolite2-redist");
-        let maxmind = require("maxmind");
-        geolite2.downloadDbs(require("path").join(require("@electron/remote").app.getPath("userData"), "geoIPcache")).then(() => {
-           geolite2.open('GeoLite2-City', path => {
-                return maxmind.open(path);
-            }).catch(e => {throw e}).then(lookup => {
-                this.geoLookup = lookup;
-                this.lastconn.finished = true;
+        // Use dynamic import for ESM-only packages
+        this._initGeoIP();
+    }
+    async _initGeoIP() {
+        try {
+            const geolite2 = await import("geolite2-redist");
+            const maxmind = await import("maxmind");
+            const path = require("path");
+            const remote = require("@electron/remote");
+            await geolite2.downloadDbs(path.join(remote.app.getPath("userData"), "geoIPcache"));
+            const lookup = await geolite2.open('GeoLite2-City', dbPath => {
+                return maxmind.default ? maxmind.default.open(dbPath) : maxmind.open(dbPath);
             });
-        });
+            this.geoLookup = lookup;
+            this.lastconn.finished = true;
+        } catch (e) {
+            console.error("Failed to initialize GeoIP:", e);
+            this.lastconn.finished = true; // Allow app to continue without GeoIP
+        }
     }
     updateInfo() {
         window.si.networkInterfaces().then(async data => {

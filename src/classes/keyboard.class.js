@@ -138,7 +138,7 @@ class Keyboard {
                         });
 
                         // Keep focus on the terminal
-                        if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
+                        if (window.keyboard.linkedToTerm && window.term && window.term[window.currentTerm]) window.term[window.currentTerm].term.focus();
                         if (this.container.dataset.passwordMode == "false")
                             window.audioManager.granted.play();
                         e.preventDefault();
@@ -179,7 +179,7 @@ class Keyboard {
                         }
 
                         // Keep focus on the terminal
-                        if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
+                        if (window.keyboard.linkedToTerm && window.term && window.term[window.currentTerm]) window.term[window.currentTerm].term.focus();
                         if(this.container.dataset.passwordMode == "false")
                             window.audioManager.stdin.play();
                         e.preventDefault();
@@ -386,8 +386,10 @@ class Keyboard {
                     window.useAppShortcut(cut.action);
                     shortcutsTriggered = true;
                 } else if (cut.type === "shell") {
-                    let fn = (cut.linebreak) ? writelr : write;
-                    window.term[window.currentTerm][fn](cut.action);
+                    let fn = (cut.linebreak) ? "writelr" : "write";
+                    if (window.term && window.term[window.currentTerm]) {
+                        window.term[window.currentTerm][fn](cut.action);
+                    }
                 } else {
                     console.warn(`${cut.trigger} has unknown type`);
                 }
@@ -517,7 +519,9 @@ class Keyboard {
 
         if (cmd === "\n") {
             if (window.keyboard.linkedToTerm) {
-                window.term[window.currentTerm].writelr("");
+                if (window.term && window.term[window.currentTerm]) {
+                    window.term[window.currentTerm].writelr("");
+                }
             } else {
                 document.activeElement.dispatchEvent(new CustomEvent("change", {detail: "enter" }));
             }
@@ -526,7 +530,9 @@ class Keyboard {
 
 
         if (window.keyboard.linkedToTerm) {
-            window.term[window.currentTerm].write(cmd);
+            if (window.term && window.term[window.currentTerm]) {
+                window.term[window.currentTerm].write(cmd);
+            }
         } else {
             let isDelete = false;
             if (typeof document.activeElement.value !== "undefined") {

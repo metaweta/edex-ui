@@ -1,18 +1,30 @@
-const cluster = require("cluster");
+import cluster from 'cluster';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import os from 'os';
+import signale from 'signale';
+import si from 'systeminformation';
 
-if (cluster.isMaster) {
-    const electron = require("electron");
-    const ipc = electron.ipcMain;
-    const signale = require("signale");
+// ipcMain is only available in the main (primary) process running under Electron
+// Worker processes run under plain Node.js and don't have access to electron modules
+let ipcMain = null;
+if (cluster.isPrimary) {
+    const electron = await import('electron');
+    ipcMain = electron.ipcMain;
+}
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+if (cluster.isPrimary) {
     // Also, leave a core available for the renderer process
-    const osCPUs = require("os").cpus().length - 1;
+    const osCPUs = os.cpus().length - 1;
     // See #904
     const numCPUs = (osCPUs > 7) ? 7 : osCPUs;
 
-    const si = require("systeminformation");
-
-    cluster.setupMaster({
-        exec: require("path").join(__dirname, "_multithread.js")
+    cluster.setupPrimary({
+        exec: join(__dirname, "_multithread.js")
     });
 
     let workers = [];
@@ -26,7 +38,7 @@ if (cluster.isMaster) {
 
     signale.success("Multithreaded controller ready");
 
-    var lastID = 0;
+    let lastID = 0;
 
     function dispatch(type, id, arg) {
         let selectedID = lastID+1;
@@ -41,8 +53,8 @@ if (cluster.isMaster) {
         lastID = selectedID;
     }
 
-    var queue = {};
-    ipc.on("systeminformation-call", (e, type, id, ...args) => {
+    let queue = {};
+    ipcMain.on("systeminformation-call", (e, type, id, ...args) => {
         if (!si[type]) {
             signale.warn("Illegal request for systeminformation");
             return;
@@ -72,18 +84,14 @@ if (cluster.isMaster) {
         }
     });
 } else if (cluster.isWorker) {
-    const signale = require("signale");
-    const si = require("systeminformation");
-
     signale.info("Multithread worker started at "+process.pid);
 
-    process.on("message", msg => {
+    process.on("message", async msg => {
         msg = JSON.parse(msg);
-        si[msg.type](msg.arg).then(res => {
-            process.send(JSON.stringify({
-                id: msg.id,
-                res
-            }));
-        });
+        const res = await si[msg.type](msg.arg);
+        process.send(JSON.stringify({
+            id: msg.id,
+            res
+        }));
     });
 }

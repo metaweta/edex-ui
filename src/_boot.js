@@ -1,5 +1,23 @@
-const signale = require("signale");
-const {app, BrowserWindow, dialog, shell} = require("electron");
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { createRequire } from 'module';
+import fs from 'fs';
+import { app, BrowserWindow, dialog, shell, ipcMain, screen } from 'electron';
+import signale from 'signale';
+import { initialize as initRemote, enable as enableRemote } from '@electron/remote/main/index.js';
+import whichPkg from 'which';
+const which = whichPkg;
+import { shellEnv } from 'shell-env';
+import { Terminal } from './classes/terminal.server.class.js';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// For loading JSON files
+const require = createRequire(import.meta.url);
+
+let win, tty, extraTtys;
 
 process.on("uncaughtException", e => {
     signale.fatal(e);
@@ -29,29 +47,21 @@ if (!gotLock) {
 
 signale.time("Startup");
 
-const electron = require("electron");
-require('@electron/remote/main').initialize()
-const ipc = electron.ipcMain;
-const path = require("path");
-const url = require("url");
-const fs = require("fs");
-const which = require("which");
-const Terminal = require("./classes/terminal.class.js").Terminal;
+initRemote();
 
-ipc.on("log", (e, type, content) => {
+ipcMain.on("log", (e, type, content) => {
     signale[type](content);
 });
 
-var win, tty, extraTtys;
-const settingsFile = path.join(electron.app.getPath("userData"), "settings.json");
-const shortcutsFile = path.join(electron.app.getPath("userData"), "shortcuts.json");
-const lastWindowStateFile = path.join(electron.app.getPath("userData"), "lastWindowState.json");
-const themesDir = path.join(electron.app.getPath("userData"), "themes");
-const innerThemesDir = path.join(__dirname, "assets/themes");
-const kblayoutsDir = path.join(electron.app.getPath("userData"), "keyboards");
-const innerKblayoutsDir = path.join(__dirname, "assets/kb_layouts");
-const fontsDir = path.join(electron.app.getPath("userData"), "fonts");
-const innerFontsDir = path.join(__dirname, "assets/fonts");
+const settingsFile = join(app.getPath("userData"), "settings.json");
+const shortcutsFile = join(app.getPath("userData"), "shortcuts.json");
+const lastWindowStateFile = join(app.getPath("userData"), "lastWindowState.json");
+const themesDir = join(app.getPath("userData"), "themes");
+const innerThemesDir = join(__dirname, "assets/themes");
+const kblayoutsDir = join(app.getPath("userData"), "keyboards");
+const innerKblayoutsDir = join(__dirname, "assets/kb_layouts");
+const fontsDir = join(app.getPath("userData"), "fonts");
+const innerFontsDir = join(__dirname, "assets/fonts");
 
 // Unset proxy env variables to avoid connection problems on the internal websockets
 // See #222
@@ -65,17 +75,18 @@ app.commandLine.appendSwitch("enable-video-decode");
 
 // Fix userData folder not setup on Windows
 try {
-    fs.mkdirSync(electron.app.getPath("userData"));
-    signale.info(`Created config dir at ${electron.app.getPath("userData")}`);
+    fs.mkdirSync(app.getPath("userData"));
+    signale.info(`Created config dir at ${app.getPath("userData")}`);
 } catch(e) {
-    signale.info(`Base config dir is ${electron.app.getPath("userData")}`);
+    signale.info(`Base config dir is ${app.getPath("userData")}`);
 }
+
 // Create default settings file
 if (!fs.existsSync(settingsFile)) {
     fs.writeFileSync(settingsFile, JSON.stringify({
         shell: (process.platform === "win32") ? "powershell.exe" : "bash",
         shellArgs: '',
-        cwd: electron.app.getPath("userData"),
+        cwd: app.getPath("userData"),
         keyboard: "en-US",
         theme: "tron",
         termFontSize: 15,
@@ -97,6 +108,7 @@ if (!fs.existsSync(settingsFile)) {
     }, "", 4));
     signale.info(`Default settings written to ${settingsFile}`);
 }
+
 // Create default shortcuts file
 if (!fs.existsSync(shortcutsFile)) {
     fs.writeFileSync(shortcutsFile, JSON.stringify([
@@ -117,7 +129,8 @@ if (!fs.existsSync(shortcutsFile)) {
     ], "", 4));
     signale.info(`Default keymap written to ${shortcutsFile}`);
 }
-//Create default window state file
+
+// Create default window state file
 if(!fs.existsSync(lastWindowStateFile)) {
     fs.writeFileSync(lastWindowStateFile, JSON.stringify({
         useFullscreen: true
@@ -133,7 +146,7 @@ try {
     // Folder already exists
 }
 fs.readdirSync(innerThemesDir).forEach(e => {
-    fs.writeFileSync(path.join(themesDir, e), fs.readFileSync(path.join(innerThemesDir, e), {encoding:"utf-8"}));
+    fs.writeFileSync(join(themesDir, e), fs.readFileSync(join(innerThemesDir, e), {encoding:"utf-8"}));
 });
 try {
     fs.mkdirSync(kblayoutsDir);
@@ -141,7 +154,7 @@ try {
     // Folder already exists
 }
 fs.readdirSync(innerKblayoutsDir).forEach(e => {
-    fs.writeFileSync(path.join(kblayoutsDir, e), fs.readFileSync(path.join(innerKblayoutsDir, e), {encoding:"utf-8"}));
+    fs.writeFileSync(join(kblayoutsDir, e), fs.readFileSync(join(innerKblayoutsDir, e), {encoding:"utf-8"}));
 });
 try {
     fs.mkdirSync(fontsDir);
@@ -149,31 +162,31 @@ try {
     // Folder already exists
 }
 fs.readdirSync(innerFontsDir).forEach(e => {
-    fs.writeFileSync(path.join(fontsDir, e), fs.readFileSync(path.join(innerFontsDir, e)));
+    fs.writeFileSync(join(fontsDir, e), fs.readFileSync(join(innerFontsDir, e)));
 });
 
 // Version history logging
-const versionHistoryPath = path.join(electron.app.getPath("userData"), "versions_log.json");
-var versionHistory = fs.existsSync(versionHistoryPath) ? require(versionHistoryPath) : {};
-var version = app.getVersion();
+const versionHistoryPath = join(app.getPath("userData"), "versions_log.json");
+let versionHistory = fs.existsSync(versionHistoryPath) ? JSON.parse(fs.readFileSync(versionHistoryPath, 'utf-8')) : {};
+let version = app.getVersion();
 if (typeof versionHistory[version] === "undefined") {
-	versionHistory[version] = {
-		firstSeen: Date.now(),
-		lastSeen: Date.now()
-	};
+    versionHistory[version] = {
+        firstSeen: Date.now(),
+        lastSeen: Date.now()
+    };
 } else {
-	versionHistory[version].lastSeen = Date.now();
+    versionHistory[version].lastSeen = Date.now();
 }
 fs.writeFileSync(versionHistoryPath, JSON.stringify(versionHistory, 0, 2), {encoding:"utf-8"});
 
-function createWindow(settings) {
+function createWindow(settings, lastWindowState) {
     signale.info("Creating window...");
 
     let display;
     if (!isNaN(settings.monitor)) {
-        display = electron.screen.getAllDisplays()[settings.monitor] || electron.screen.getPrimaryDisplay();
+        display = screen.getAllDisplays()[settings.monitor] || screen.getPrimaryDisplay();
     } else {
-        display = electron.screen.getPrimaryDisplay();
+        display = screen.getPrimaryDisplay();
     }
     let {x, y, width, height} = display.bounds;
     width++; height++;
@@ -192,7 +205,7 @@ function createWindow(settings) {
         backgroundColor: '#000000',
         webPreferences: {
             devTools: true,
-	    enableRemoteModule: true,
+            enableRemoteModule: true,
             contextIsolation: false,
             backgroundThrottling: false,
             webSecurity: true,
@@ -203,17 +216,16 @@ function createWindow(settings) {
         }
     });
 
-    win.loadURL(url.format({
-        pathname: path.join(__dirname, 'ui.html'),
-        protocol: 'file:',
-        slashes: true
-    }));
+    win.loadFile(join(__dirname, 'ui.html'));
+
+    // Enable @electron/remote for this window
+    enableRemote(win.webContents);
 
     signale.complete("Frontend window created!");
     win.show();
     if (!settings.allowWindowed) {
         win.setResizable(false);
-    } else if (!require(lastWindowStateFile)["useFullscreen"]) {
+    } else if (!lastWindowState.useFullscreen) {
         win.setFullScreen(false);
     }
 
@@ -222,16 +234,18 @@ function createWindow(settings) {
 
 app.on('ready', async () => {
     signale.pending(`Loading settings file...`);
-    let settings = require(settingsFile);
+    let settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+    let lastWindowState = JSON.parse(fs.readFileSync(lastWindowStateFile, 'utf-8'));
+
     signale.pending(`Resolving shell path...`);
     settings.shell = await which(settings.shell).catch(e => { throw(e) });
     signale.info(`Shell found at ${settings.shell}`);
     signale.success(`Settings loaded!`);
 
-    if (!require("fs").existsSync(settings.cwd)) throw new Error("Configured cwd path does not exist.");
+    if (!fs.existsSync(settings.cwd)) throw new Error("Configured cwd path does not exist.");
 
     // See #366
-    let cleanEnv = await require("shell-env")(settings.shell).catch(e => { throw e; });
+    let cleanEnv = await shellEnv(settings.shell).catch(e => { throw e; });
 
     Object.assign(cleanEnv, {
         TERM: "xterm-256color",
@@ -269,9 +283,9 @@ app.on('ready', async () => {
 
     // Support for multithreaded systeminformation calls
     signale.pending("Starting multithreaded calls controller...");
-    require("./_multithread.js");
+    await import("./_multithread.js");
 
-    createWindow(settings);
+    createWindow(settings, lastWindowState);
 
     // Support for more terminals, used for creating tabs (currently limited to 4 extra terms)
     extraTtys = {};
@@ -282,7 +296,7 @@ app.on('ready', async () => {
         extraTtys[basePort+i] = null;
     }
 
-    ipc.on("ttyspawn", (e, arg) => {
+    ipcMain.on("ttyspawn", (e, arg) => {
         let port = null;
         Object.keys(extraTtys).forEach(key => {
             if (extraTtys[key] === null && port === null) {
@@ -332,16 +346,16 @@ app.on('ready', async () => {
     // Backend support for theme and keyboard hotswitch
     let themeOverride = null;
     let kbOverride = null;
-    ipc.on("getThemeOverride", (e, arg) => {
+    ipcMain.on("getThemeOverride", (e, arg) => {
         e.sender.send("getThemeOverride", themeOverride);
     });
-    ipc.on("getKbOverride", (e, arg) => {
+    ipcMain.on("getKbOverride", (e, arg) => {
         e.sender.send("getKbOverride", kbOverride);
     });
-    ipc.on("setThemeOverride", (e, arg) => {
+    ipcMain.on("setThemeOverride", (e, arg) => {
         themeOverride = arg;
     });
-    ipc.on("setKbOverride", (e, arg) => {
+    ipcMain.on("setKbOverride", (e, arg) => {
         kbOverride = arg;
     });
 });
