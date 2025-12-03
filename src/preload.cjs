@@ -127,5 +127,11 @@ window.nodeAPI = {
     joinSync: (...args) => require('path').join(...args),
     dirnameSync: (p) => require('path').dirname(p),
     basenameSync: (p, ext) => ext ? require('path').basename(p, ext) : require('path').basename(p),
-    realpathSync: (path) => require('fs').realpathSync(path)
+    realpathSync: (path) => require('fs').realpathSync(path),
+
+    // File system watcher (still requires nodeIntegration)
+    watch: (path, callback) => require('fs').watch(path, callback),
+
+    // Path resolve (for filesystem navigation)
+    resolveSync: (...args) => require('path').resolve(...args)
 };

@@ -54,6 +54,22 @@ Removed the deprecated @electron/remote module by implementing a proper IPC-base
 - Added `allowProposedApi: true` to xterm options for `xterm-addon-ligatures` compatibility
 - Added null checks in `keyboard.class.js` for terminal access before initialization
 
+### Context Isolation Migration (In Progress)
+Migrating renderer code from direct Node.js `require()` calls to use `window.nodeAPI` and `window.electronAPI` exposed via preload script.
+
+**Completed Migrations:**
+- `_renderer.js` - Uses `window.nodeAPI` for fs/path operations, `window.nodeAPI.loadJsonFile()` for config files, `crypto.randomUUID()` instead of nanoid
+- `terminal.class.js` - Uses window globals for xterm/addons/color, `window.electronAPI` for IPC
+- `filesystem.class.js` - Uses `window.nodeAPI` for all fs/path operations
+- `netstat.class.js` - Uses `window.electronAPI` for network operations, IPC for socket tests
+- `locationGlobe.class.js` - Uses window globals for geodata and globe library
+- `updateChecker.class.js` - Uses `window.electronAPI` for version checks and external links
+
+**Remaining Work for Full Context Isolation:**
+- Bundle browser-compatible libraries (xterm, howler, smoothie, color) - currently still using require()
+- Enable `contextIsolation: true` and `nodeIntegration: false` in BrowserWindow config
+- Testing with full isolation enabled
+
 ## Context Isolation Refactoring Plan
 
 ### Goal

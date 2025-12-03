@@ -34,10 +34,34 @@ window.onerror = (msg, path, line, col, error) => {
     document.getElementById("boot_screen").innerHTML += `${error} :  ${msg}<br/>==> at ${path}  ${line}:${col}`;
 };
 
-const path = require("path");
-const fs = require("fs");
+// Use window.nodeAPI and window.electronAPI from preload for context isolation compatibility
+// Note: Still using require() for now since nodeIntegration is enabled, but code is migrated
+// to use window.nodeAPI/electronAPI where possible for future context isolation
+const path = {
+    join: window.nodeAPI.joinSync,
+    dirname: window.nodeAPI.dirnameSync,
+    basename: window.nodeAPI.basenameSync
+};
+const fs = {
+    readFileSync: window.nodeAPI.readFileSync,
+    writeFileSync: window.nodeAPI.writeFileSync,
+    existsSync: window.nodeAPI.existsSync,
+    readdirSync: window.nodeAPI.readdirSync,
+    writeFile: (p, data, encoding, cb) => {
+        window.nodeAPI.writeFile(p, data, { encoding }).then(() => cb()).catch(cb);
+    }
+};
+// For webFrame, we need the actual electron module
 const electron = require("electron");
 const ipc = electron.ipcRenderer;
+
+// Load xterm and addons as globals for Terminal class
+window.XTerm = require("xterm").Terminal;
+window.AttachAddon = require("xterm-addon-attach").AttachAddon;
+window.FitAddon = require("xterm-addon-fit").FitAddon;
+window.LigaturesAddon = require("xterm-addon-ligatures").LigaturesAddon;
+window.WebglAddon = require("xterm-addon-webgl").WebglAddon;
+window.colorLib = require("color");
 
 // Directory paths - will be initialized async
 let settingsDir, themesDir, keyboardsDir, fontsDir, settingsFile, shortcutsFile, lastWindowStateFile;
@@ -59,10 +83,10 @@ let appVersion = "";
         shortcutsFile = path.join(settingsDir, "shortcuts.json");
         lastWindowStateFile = path.join(settingsDir, "lastWindowState.json");
 
-        // Load config
-        window.settings = require(settingsFile);
-        window.shortcuts = require(shortcutsFile);
-        window.lastWindowState = require(lastWindowStateFile);
+        // Load config via IPC (supports context isolation)
+        window.settings = await window.nodeAPI.loadJsonFile(settingsFile);
+        window.shortcuts = await window.nodeAPI.loadJsonFile(shortcutsFile);
+        window.lastWindowState = await window.nodeAPI.loadJsonFile(lastWindowStateFile);
 
         // Load CLI parameters
         const argv = await window.electronAPI.getArgv();
@@ -83,7 +107,7 @@ let appVersion = "";
             window.settings.theme = themeOverride;
             window.settings.nointroOverride = true;
         }
-        _loadTheme(require(path.join(themesDir, window.settings.theme+".json")));
+        _loadTheme(await window.nodeAPI.loadJsonFile(path.join(themesDir, window.settings.theme+".json")));
 
         // Load file icons globally for components that need them
         window.fileIcons = require("./assets/icons/file-icons.json");
@@ -99,6 +123,10 @@ let appVersion = "";
         // Load globe geodata and encom-globe for LocationGlobe
         window.globeGeodata = require("./assets/misc/grid.json");
         require("./assets/vendor/encom-globe.cjs");
+
+        // Load file icons matcher and mime-types for FilesystemDisplay
+        window.fileIconsMatcher = require("./assets/misc/file-icons-match.cjs");
+        window.mimeTypes = require("mime-types");
 
         // Same for keyboard override/hotswitch
         const kbOverride = await window.electronAPI.getKbOverride();
@@ -256,7 +284,8 @@ function waitForFonts() {
 
 // A proxy function used to add multithreading to systeminformation calls - see backend process manager @ _multithread.js
 function initSystemInformationProxy() {
-    const { nanoid } = require("nanoid/non-secure");
+    // Use crypto.randomUUID for unique IDs (browser-native, no require needed)
+    const generateId = () => crypto.randomUUID();
 
     window.si = new Proxy({}, {
         apply: () => {throw new Error("Cannot use sysinfo proxy directly as a function")},
@@ -266,7 +295,7 @@ function initSystemInformationProxy() {
                 let callback = (typeof args[args.length - 1] === "function") ? true : false;
 
                 return new Promise((resolve, reject) => {
-                    let id = nanoid();
+                    let id = generateId();
                     ipc.once("systeminformation-reply-"+id, (e, res) => {
                         if (callback) {
                             args[args.length - 1](res);
@@ -288,7 +317,7 @@ function displayLine() {
     let log = fs.readFileSync(path.join(__dirname, "assets", "misc", "boot_log.txt")).toString().split('\n');
 
     function isArchUser() {
-        return require("os").platform() === "linux"
+        return window.nodeAPI.platform === "linux"
                 && fs.existsSync("/etc/os-release")
                 && fs.readFileSync("/etc/os-release").toString().includes("arch");
     }
@@ -399,7 +428,7 @@ async function getDisplayName() {
         return user;
 
     try {
-        user = await require("username")();
+        user = await window.nodeAPI.getUsername();
     } catch (e) {}
 
     return user;
@@ -1208,7 +1237,7 @@ document.addEventListener("keydown", e => {
 
 // Fix #265
 window.addEventListener("keyup", e => {
-    if (require("os").platform() === "win32" && e.key === "F4" && e.altKey === true) {
+    if (window.nodeAPI.platform === "win32" && e.key === "F4" && e.altKey === true) {
         window.electronAPI.quit();
     }
 });

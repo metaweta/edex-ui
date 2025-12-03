@@ -1,10 +1,10 @@
 // Client-side Terminal class (loaded via <script> tag in browser)
 // This file is used by the renderer process only
+// Uses window globals instead of require() for context isolation compatibility
 
 class Terminal {
     constructor(opts) {
-        const { ipcRenderer } = require("electron");
-        ipcRenderer.send("log", "info", "Terminal constructor called");
+        window.electronAPI.log("info", "Terminal constructor called");
 
         if (opts.role !== "client") {
             throw "Client Terminal class only supports role='client'";
@@ -12,22 +12,21 @@ class Terminal {
 
         if (!opts.parentId) throw "Missing options";
 
-        // Dynamic imports for client-side (these are browser-compatible or have browser builds)
-        ipcRenderer.send("log", "info", "Loading xterm...");
-        const { Terminal: XTerm } = require("xterm");
-        ipcRenderer.send("log", "info", "xterm loaded");
-        const { AttachAddon } = require("xterm-addon-attach");
-        ipcRenderer.send("log", "info", "AttachAddon loaded");
-        const { FitAddon } = require("xterm-addon-fit");
-        ipcRenderer.send("log", "info", "FitAddon loaded");
-        const { LigaturesAddon } = require("xterm-addon-ligatures");
-        ipcRenderer.send("log", "info", "LigaturesAddon loaded");
-        const { WebglAddon } = require("xterm-addon-webgl");
-        ipcRenderer.send("log", "info", "All addons loaded");
-        const color = require("color");
+        // Use window globals loaded by _renderer.js
+        window.electronAPI.log("info", "Loading xterm...");
+        const XTerm = window.XTerm;
+        window.electronAPI.log("info", "xterm loaded");
+        const AttachAddon = window.AttachAddon;
+        window.electronAPI.log("info", "AttachAddon loaded");
+        const FitAddon = window.FitAddon;
+        window.electronAPI.log("info", "FitAddon loaded");
+        const LigaturesAddon = window.LigaturesAddon;
+        window.electronAPI.log("info", "LigaturesAddon loaded");
+        const WebglAddon = window.WebglAddon;
+        window.electronAPI.log("info", "All addons loaded");
+        const color = window.colorLib;
 
         this.xTerm = XTerm;
-        this.Ipc = ipcRenderer;
 
         this.port = opts.port || 3000;
         this.cwd = "";
@@ -42,7 +41,7 @@ class Terminal {
             while (rows.length < 3) {
                 rows = "0"+rows;
             }
-            this.Ipc.send("terminal_channel-"+this.port, "Resize", cols, rows);
+            window.electronAPI.sendTerminalChannel(this.port, "Resize", cols, rows);
         };
 
         // Support for custom color filters on the terminal - see #483
@@ -168,8 +167,8 @@ class Terminal {
         document.querySelectorAll('.xterm-helper-textarea').forEach(textarea => textarea.setAttribute('readonly', 'readonly'))
         this.term.focus();
 
-        this.Ipc.send("terminal_channel-"+this.port, "Renderer startup");
-        this.Ipc.on("terminal_channel-"+this.port, (e, ...args) => {
+        window.electronAPI.sendTerminalChannel(this.port, "Renderer startup");
+        window.electronAPI.onTerminalChannel(this.port, (...args) => {
             switch(args[0]) {
                 case "New cwd":
                     this.cwd = args[1];

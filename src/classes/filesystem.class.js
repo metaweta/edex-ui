@@ -2,14 +2,13 @@ class FilesystemDisplay {
     constructor(opts) {
         if (!opts.parentId) throw "Missing options";
 
-        const fs = require("fs");
-        const path = require("path");
+        // Use window.nodeAPI instead of require("fs") and require("path")
         this.cwd = [];
         this.cwd_path = null;
         this.iconcolor = `rgb(${window.theme.r}, ${window.theme.g}, ${window.theme.b})`;
         this._formatBytes = (a,b) => {if(0==a)return"0 Bytes";var c=1024,d=b||2,e=["Bytes","KB","MB","GB","TB","PB","EB","ZB","YB"],f=Math.floor(Math.log(a)/Math.log(c));return parseFloat((a/Math.pow(c,f)).toFixed(d))+" "+e[f]};
-        this.fileIconsMatcher = require("./assets/misc/file-icons-match.cjs");
-        this.icons = require("./assets/icons/file-icons.json");
+        this.fileIconsMatcher = window.fileIconsMatcher;
+        this.icons = window.fileIcons;
         this.edexIcons = {
             theme: {
                 width: 24,
@@ -66,24 +65,24 @@ class FilesystemDisplay {
             }
         }, 1000);
 
-        this._asyncFSwrapper = new Proxy(fs, {
-            get: function(fs, prop) {
-                if (prop in fs) {
-                    return function(...args) {
-                        return new Promise((resolve, reject) => {
-                            fs[prop](...args, (err, d) => {
-                                if (typeof err !== "undefined" && err !== null) reject(err);
-                                if (typeof d !== "undefined") resolve(d);
-                                if (typeof d === "undefined" && typeof err === "undefined") resolve();
-                            });
-                        });
-                    }
-                }
-            },
-            set: function() {
-                return false;
+        // Async FS wrapper using window.nodeAPI IPC methods
+        this._asyncFSwrapper = {
+            readdir: (path) => window.nodeAPI.readdir(path),
+            lstat: async (path) => {
+                const stats = await window.nodeAPI.lstat(path);
+                // Convert IPC result to fs.Stats-like object with methods
+                return {
+                    isFile: () => stats.isFile,
+                    isDirectory: () => stats.isDirectory,
+                    isSymbolicLink: () => stats.isSymbolicLink,
+                    size: stats.size,
+                    mtime: new Date(stats.mtime),
+                    atime: new Date(stats.atime),
+                    ctime: new Date(stats.ctime),
+                    mode: stats.mode
+                };
             }
-        });
+        };
 
         this.setFailedState = () => {
             this.failed = true;
@@ -123,7 +122,7 @@ class FilesystemDisplay {
             if (this._fsWatcher) {
                 this._fsWatcher.close();
             }
-            this._fsWatcher = fs.watch(dir, (eventType, filename) => {
+            this._fsWatcher = window.nodeAPI.watch(dir, (eventType, filename) => {
                 if (eventType != "change") { // #758 - Don't refresh file view if only file contents have changed.
                     this._runNextTick = true;
                 }
@@ -161,7 +160,7 @@ class FilesystemDisplay {
                 document.querySelector("section#filesystem > h3.title > p:first-of-type").innerText = "FILESYSTEM - TRACKING FAILED, RUNNING DETACHED FROM TTY";
             }
 
-            if (process.platform === "win32" && dir.endsWith(":")) dir = dir+"\\";
+            if (window.nodeAPI.platform === "win32" && dir.endsWith(":")) dir = dir+"\\";
             let tcwd = dir;
             let content = await this._asyncFSwrapper.readdir(tcwd).catch(err => {
                 console.warn(err);
@@ -183,7 +182,7 @@ class FilesystemDisplay {
                 if (content.length === 0) resolve();
 
                 content.forEach(async (file, i) => {
-                    let fstat = await this._asyncFSwrapper.lstat(path.join(tcwd, file)).catch(e => {
+                    let fstat = await this._asyncFSwrapper.lstat(window.nodeAPI.joinSync(tcwd, file)).catch(e => {
                         if (!e.message.includes("EPERM") && !e.message.includes("EBUSY")) {
                             reject();
                         }
@@ -191,7 +190,7 @@ class FilesystemDisplay {
 
                     let e = {
                         name: window._escapeHtml(file),
-                        path: path.resolve(tcwd, file),
+                        path: window.nodeAPI.resolveSync(tcwd, file),
                         type: "other",
                         category: "other",
                         hidden: false
@@ -270,7 +269,7 @@ class FilesystemDisplay {
             let blocks = await window.si.blockDevices();
             let devices = [];
             blocks.forEach(block => {
-                if (fs.existsSync(block.mount)) {
+                if (window.nodeAPI.existsSync(block.mount)) {
                     let type = (block.type === "rom") ? "rom" : "disk";
                     if (block.removable && block.type !== "rom") {
                         type = "usb";
@@ -326,7 +325,7 @@ class FilesystemDisplay {
                     } else if (e.type === "up") {
                         cmd = `window.term[window.currentTerm].writelr("cd ..")`;
                     } else if (e.type === "disk" || e.type === "rom" || e.type === "usb") {
-                        if (process.platform === "win32") {
+                        if (window.nodeAPI.platform === "win32") {
                             cmd = `window.term[window.currentTerm].writelr("${e.path.replace(/\\/g, '')}")`;
                         } else {
                             cmd = `window.term[window.currentTerm].writelr("cd \\"${e.path.replace(/\\/g, '')}\\"")`;
@@ -338,7 +337,7 @@ class FilesystemDisplay {
                     if (e.type === "dir" || e.type.endsWith("Dir")) {
                         cmd = `window.fsDisp.readFS(fsDisp.cwd[${blockIndex}].path)`;
                     } else if (e.type === "up") {
-                        cmd = `window.fsDisp.readFS(path.resolve(window.fsDisp.dirpath, ".."))`;
+                        cmd = `window.fsDisp.readFS(window.nodeAPI.resolveSync(window.fsDisp.dirpath, ".."))`;
                     } else if (e.type === "disk" || e.type === "rom" || e.type === "usb") {
                         cmd = `window.fsDisp.readFS("${e.path.replace(/\\/g, '')}")`;
                     } else {
@@ -526,7 +525,7 @@ class FilesystemDisplay {
         this.renderDiskUsage = async fsBlock => {
             if (document.getElementById("fs_space_bar").getAttribute("onclick") !== "" || fsBlock === null) return;
 
-            let splitter = (process.platform === "win32") ? "\\" : "/";
+            let splitter = (window.nodeAPI.platform === "win32") ? "\\" : "/";
             let displayMount = (fsBlock.mount.length < 18) ? fsBlock.mount : "..."+splitter+fsBlock.mount.split(splitter).pop();
 
             // See #226
@@ -560,7 +559,7 @@ class FilesystemDisplay {
                 name = block.name;
             }
 
-            let mime = require("mime-types");
+            let mime = window.mimeTypes;
 
             block.path = block.path.replace(/\\/g, "/");
 
@@ -611,15 +610,7 @@ class FilesystemDisplay {
                     break;
                 default:
                     if (mime.charset(filetype) === "UTF-8") {
-                        fs.readFile(block.path, 'utf-8', (err, data) => {
-                            if (err) {
-                                new Modal({
-                                    type: "info",
-                                    title: "Failed to load file: " + block.path,
-                                    html: err
-                                });
-                                console.log(err);
-                            };
+                        window.nodeAPI.readFile(block.path, { encoding: 'utf-8' }).then(data => {
                             window.keyboard.detach();
                             new Modal(
                                 {
@@ -634,6 +625,13 @@ class FilesystemDisplay {
                                     window.term[window.currentTerm].term.focus();
                                 }
                             );
+                        }).catch(err => {
+                            new Modal({
+                                type: "info",
+                                title: "Failed to load file: " + block.path,
+                                html: err.message || err
+                            });
+                            console.log(err);
                         });
                    break;
                 }
