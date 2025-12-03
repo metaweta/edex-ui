@@ -2,9 +2,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createRequire } from 'module';
 import fs from 'fs';
-import { app, BrowserWindow, dialog, shell, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, dialog, shell, ipcMain, screen, clipboard, globalShortcut } from 'electron';
 import signale from 'signale';
-import { initialize as initRemote, enable as enableRemote } from '@electron/remote/main/index.js';
 import whichPkg from 'which';
 const which = whichPkg;
 import { shellEnv } from 'shell-env';
@@ -46,8 +45,6 @@ if (!gotLock) {
 }
 
 signale.time("Startup");
-
-initRemote();
 
 ipcMain.on("log", (e, type, content) => {
     signale[type](content);
@@ -205,21 +202,18 @@ function createWindow(settings, lastWindowState) {
         backgroundColor: '#000000',
         webPreferences: {
             devTools: true,
-            enableRemoteModule: true,
             contextIsolation: false,
             backgroundThrottling: false,
             webSecurity: true,
             nodeIntegration: true,
             nodeIntegrationInSubFrames: false,
             allowRunningInsecureContent: false,
+            preload: join(__dirname, 'preload.cjs'),
             experimentalFeatures: settings.experimentalFeatures || false
         }
     });
 
     win.loadFile(join(__dirname, 'ui.html'));
-
-    // Enable @electron/remote for this window
-    enableRemote(win.webContents);
 
     signale.complete("Frontend window created!");
     win.show();
@@ -309,6 +303,72 @@ app.on('ready', async () => {
         } catch (e) {
             return null;
         }
+    });
+
+    // IPC handlers for replacing @electron/remote
+    // App info
+    ipcMain.handle("app-get-version", () => app.getVersion());
+    ipcMain.handle("app-get-path", (event, name) => app.getPath(name));
+
+    // App actions
+    ipcMain.handle("app-focus", () => app.focus());
+    ipcMain.handle("app-relaunch", () => {
+        app.relaunch();
+        app.quit();
+    });
+    ipcMain.handle("app-quit", () => app.quit());
+
+    // Process info
+    ipcMain.handle("process-argv", () => process.argv);
+
+    // Screen info
+    ipcMain.handle("screen-get-displays", () => {
+        return screen.getAllDisplays().map(d => ({
+            id: d.id,
+            bounds: d.bounds,
+            workArea: d.workArea,
+            scaleFactor: d.scaleFactor,
+            rotation: d.rotation
+        }));
+    });
+
+    // Window control (handlers set up after window creation)
+    ipcMain.handle("window-toggle-devtools", () => {
+        if (win) win.webContents.toggleDevTools();
+    });
+    ipcMain.handle("window-set-size", (event, width, height) => {
+        if (win) win.setSize(width, height);
+    });
+    ipcMain.handle("window-set-fullscreen", (event, flag) => {
+        if (win) win.setFullScreen(flag);
+    });
+    ipcMain.handle("window-is-fullscreen", () => {
+        return win ? win.isFullScreen() : false;
+    });
+
+    // Clipboard
+    ipcMain.handle("clipboard-read", () => clipboard.readText());
+
+    // Global shortcuts - store registered shortcuts to track them
+    const registeredShortcuts = new Map();
+    ipcMain.handle("global-shortcut-register", (event, accelerator, id) => {
+        try {
+            const success = globalShortcut.register(accelerator, () => {
+                // Send the shortcut ID back to renderer
+                if (win) win.webContents.send("shortcut-triggered", id);
+            });
+            if (success) {
+                registeredShortcuts.set(id, accelerator);
+            }
+            return success;
+        } catch (e) {
+            signale.error(`Failed to register shortcut ${accelerator}:`, e.message);
+            return false;
+        }
+    });
+    ipcMain.handle("global-shortcut-unregister-all", () => {
+        globalShortcut.unregisterAll();
+        registeredShortcuts.clear();
     });
 
     createWindow(settings, lastWindowState);

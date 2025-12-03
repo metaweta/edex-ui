@@ -37,53 +37,90 @@ window.onerror = (msg, path, line, col, error) => {
 const path = require("path");
 const fs = require("fs");
 const electron = require("electron");
-const remote = require("@electron/remote");
 const ipc = electron.ipcRenderer;
 
-const settingsDir = remote.app.getPath("userData");
-const themesDir = path.join(settingsDir, "themes");
-const keyboardsDir = path.join(settingsDir, "keyboards");
-const fontsDir = path.join(settingsDir, "fonts");
-const settingsFile = path.join(settingsDir, "settings.json");
-const shortcutsFile = path.join(settingsDir, "shortcuts.json");
-const lastWindowStateFile = path.join(settingsDir, "lastWindowState.json");
+// Directory paths - will be initialized async
+let settingsDir, themesDir, keyboardsDir, fontsDir, settingsFile, shortcutsFile, lastWindowStateFile;
 
-// Load config
-window.settings = require(settingsFile);
-window.shortcuts = require(shortcutsFile);
-window.lastWindowState = require(lastWindowStateFile);
+// Cached app version - will be initialized async
+let appVersion = "";
 
-// Load CLI parameters
-if (remote.process.argv.includes("--nointro")) {
-    window.settings.nointroOverride = true;
-} else {
-    window.settings.nointroOverride = false;
-}
-if (remote.process.argv.includes("--nocursor")) {
-    window.settings.nocursorOverride = true;
-} else {
-    window.settings.nocursorOverride = false;
-}
+// Initialize app and start the UI
+(async function initApp() {
+    try {
+        // Get paths and version via IPC
+        settingsDir = await window.electronAPI.getPath("userData");
+        appVersion = await window.electronAPI.getVersion();
 
-// Retrieve theme override (hotswitch)
-ipc.once("getThemeOverride", (e, theme) => {
-    if (theme !== null) {
-        window.settings.theme = theme;
-        window.settings.nointroOverride = true;
+        themesDir = path.join(settingsDir, "themes");
+        keyboardsDir = path.join(settingsDir, "keyboards");
+        fontsDir = path.join(settingsDir, "fonts");
+        settingsFile = path.join(settingsDir, "settings.json");
+        shortcutsFile = path.join(settingsDir, "shortcuts.json");
+        lastWindowStateFile = path.join(settingsDir, "lastWindowState.json");
+
+        // Load config
+        window.settings = require(settingsFile);
+        window.shortcuts = require(shortcutsFile);
+        window.lastWindowState = require(lastWindowStateFile);
+
+        // Load CLI parameters
+        const argv = await window.electronAPI.getArgv();
+        if (argv.includes("--nointro")) {
+            window.settings.nointroOverride = true;
+        } else {
+            window.settings.nointroOverride = false;
+        }
+        if (argv.includes("--nocursor")) {
+            window.settings.nocursorOverride = true;
+        } else {
+            window.settings.nocursorOverride = false;
+        }
+
+        // Retrieve theme override (hotswitch)
+        const themeOverride = await window.electronAPI.getThemeOverride();
+        if (themeOverride !== null) {
+            window.settings.theme = themeOverride;
+            window.settings.nointroOverride = true;
+        }
         _loadTheme(require(path.join(themesDir, window.settings.theme+".json")));
-    } else {
-        _loadTheme(require(path.join(themesDir, window.settings.theme+".json")));
+
+        // Same for keyboard override/hotswitch
+        const kbOverride = await window.electronAPI.getKbOverride();
+        if (kbOverride !== null) {
+            window.settings.keyboard = kbOverride;
+            window.settings.nointroOverride = true;
+        }
+
+        // Init audio
+        window.audioManager = new AudioManager();
+
+        // See #223
+        await window.electronAPI.focus();
+
+        // Start the UI
+        if (window.settings.nointro || window.settings.nointroOverride) {
+            ipc.send("log", "info", "Starting nointro mode");
+            initGraphicalErrorHandling();
+            initSystemInformationProxy();
+            document.getElementById("boot_screen").remove();
+            document.body.setAttribute("class", "");
+            ipc.send("log", "info", "Waiting for fonts...");
+            await waitForFonts();
+            ipc.send("log", "info", "Fonts loaded, calling initUI");
+            initUI();
+        } else {
+            displayLine();
+        }
+
+        // Initialize keyboard shortcuts after settings are loaded
+        initKeyboardShortcuts();
+
+    } catch (e) {
+        console.error("Init error:", e);
+        document.getElementById("boot_screen").innerHTML += `Init Error: ${e.message}<br/>`;
     }
-});
-ipc.send("getThemeOverride");
-// Same for keyboard override/hotswitch
-ipc.once("getKbOverride", (e, layout) => {
-    if (layout !== null) {
-        window.settings.keyboard = layout;
-        window.settings.nointroOverride = true;
-    }
-});
-ipc.send("getKbOverride");
+})();
 
 // Load UI theme
 window._loadTheme = theme => {
@@ -156,21 +193,49 @@ function initGraphicalErrorHandling() {
 
 function waitForFonts() {
     return new Promise(resolve => {
-        if (document.readyState !== "complete" || document.fonts.status !== "loaded") {
-            document.addEventListener("readystatechange", () => {
-                if (document.readyState === "complete") {
-                    if (document.fonts.status === "loaded") {
-                        resolve();
-                    } else {
-                        document.fonts.onloadingdone = () => {
-                            if (document.fonts.status === "loaded") resolve();
-                        };
-                    }
-                }
-            });
-        } else {
+        ipc.send("log", "debug", `waitForFonts: readyState=${document.readyState}, fonts.status=${document.fonts.status}`);
+
+        // If everything is already loaded, resolve immediately
+        if (document.readyState === "complete" && document.fonts.status === "loaded") {
+            ipc.send("log", "debug", "waitForFonts: Already complete, resolving");
             resolve();
+            return;
         }
+
+        // Set up a timeout fallback in case fonts never fully load
+        const timeout = setTimeout(() => {
+            ipc.send("log", "warn", "waitForFonts: Timeout after 5s, proceeding anyway");
+            resolve();
+        }, 5000);
+
+        const checkAndResolve = () => {
+            if (document.readyState === "complete" && document.fonts.status === "loaded") {
+                clearTimeout(timeout);
+                ipc.send("log", "debug", "waitForFonts: Conditions met, resolving");
+                resolve();
+                return true;
+            }
+            return false;
+        };
+
+        // Wait for document ready
+        if (document.readyState !== "complete") {
+            document.addEventListener("readystatechange", () => {
+                ipc.send("log", "debug", `waitForFonts: readystatechange -> ${document.readyState}`);
+                checkAndResolve();
+            });
+        }
+
+        // Wait for fonts
+        if (document.fonts.status !== "loaded") {
+            document.fonts.onloadingdone = () => {
+                ipc.send("log", "debug", `waitForFonts: fonts.onloadingdone -> ${document.fonts.status}`);
+                checkAndResolve();
+            };
+        }
+
+        // Check once more in case state changed while setting up listeners
+        checkAndResolve();
     });
 }
 
@@ -200,27 +265,7 @@ function initSystemInformationProxy() {
     });
 }
 
-// Init audio
-window.audioManager = new AudioManager();
-
-// See #223
-remote.app.focus();
-
 let i = 0;
-if (window.settings.nointro || window.settings.nointroOverride) {
-    ipc.send("log", "info", "Starting nointro mode");
-    initGraphicalErrorHandling();
-    initSystemInformationProxy();
-    document.getElementById("boot_screen").remove();
-    document.body.setAttribute("class", "");
-    ipc.send("log", "info", "Waiting for fonts...");
-    waitForFonts().then(() => {
-        ipc.send("log", "info", "Fonts loaded, calling initUI");
-        initUI();
-    });
-} else {
-    displayLine();
-}
 
 // Startup boot log
 function displayLine() {
@@ -248,7 +293,7 @@ function displayLine() {
 
     switch(true) {
         case i === 2:
-            bootScreen.innerHTML += `eDEX-UI Kernel version ${remote.app.getVersion()} boot at ${Date().toString()}; root:xnu-1699.22.73~1/RELEASE_X86_64`;
+            bootScreen.innerHTML += `eDEX-UI Kernel version ${appVersion} boot at ${Date().toString()}; root:xnu-1699.22.73~1/RELEASE_X86_64`;
         case i === 4:
             setTimeout(displayLine, 500);
             break;
@@ -504,7 +549,7 @@ async function initUI() {
     window.onmouseup = e => {
         if (window.keyboard.linkedToTerm) window.term[window.currentTerm].term.focus();
     };
-    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-UI v${remote.app.getVersion()} - Electron v${process.versions.electron}`+"\033[0m");
+    window.term[0].term.writeln("\033[1m"+`Welcome to eDEX-UI v${appVersion} - Electron v${process.versions.electron}`+"\033[0m");
 
     await _delay(100);
 
@@ -531,7 +576,7 @@ async function initUI() {
 }
 
 window.themeChanger = theme => {
-    ipc.send("setThemeOverride", theme);
+    window.electronAPI.setThemeOverride(theme);
     setTimeout(() => {
         window.location.reload(true);
     }, 100);
@@ -543,7 +588,7 @@ window.remakeKeyboard = layout => {
         layout: path.join(keyboardsDir, layout+".json" || settings.keyboard+".json"),
         container: "keyboard"
     });
-    ipc.send("setKbOverride", layout);
+    window.electronAPI.setKbOverride(layout);
 };
 
 window.focusShellTab = number => {
@@ -624,7 +669,8 @@ window.openSettings = async () => {
         if (th === window.settings.theme) return;
         themes += `<option>${th}</option>`;
     });
-    for (let i = 0; i < remote.screen.getAllDisplays().length; i++) {
+    const displays = await window.electronAPI.getAllDisplays();
+    for (let i = 0; i < displays.length; i++) {
         if (i !== window.settings.monitor) monitors += `<option>${i}</option>`;
     }
     let nets = await window.si.networkInterfaces();
@@ -637,7 +683,7 @@ window.openSettings = async () => {
 
     new Modal({
         type: "custom",
-        title: `Settings <i>(v${remote.app.getVersion()})</i>`,
+        title: `Settings <i>(v${appVersion})</i>`,
         html: `<table id="settingsEditor">
                     <tr>
                         <th>Key</th>
@@ -820,10 +866,10 @@ window.openSettings = async () => {
                 <h6 id="settingsEditorStatus">Loaded values from memory</h6>
                 <br>`,
         buttons: [
-            {label: "Open in External Editor", action:`electron.shell.openPath('${settingsFile}');electronWin.minimize();`},
+            {label: "Open in External Editor", action:`electron.shell.openPath('${settingsFile}');window.electronAPI.setWindowSize(960, 540);`},
             {label: "Save to Disk", action: "window.writeSettingsFile()"},
             {label: "Reload UI", action: "window.location.reload(true);"},
-            {label: "Restart eDEX", action: "remote.app.relaunch();remote.app.quit();"}
+            {label: "Restart eDEX", action: "window.electronAPI.relaunch();"}
         ]
     }, () => {
         // Link the keyboard back to the terminal
@@ -880,9 +926,10 @@ window.writeSettingsFile = () => {
     document.getElementById("settingsEditorStatus").innerText = "New values written to settings.json file at "+new Date().toTimeString();
 };
 
-window.toggleFullScreen = () => {
-    let useFullscreen = (electronWin.isFullScreen() ? false : true);
-    electronWin.setFullScreen(useFullscreen);
+window.toggleFullScreen = async () => {
+    let isFullScreen = await window.electronAPI.isFullScreen();
+    let useFullscreen = !isFullScreen;
+    await window.electronAPI.setFullScreen(useFullscreen);
 
     //Update settings
     window.lastWindowState["useFullscreen"] = useFullscreen;
@@ -937,7 +984,7 @@ window.openShortcutsHelp = () => {
     window.keyboard.detach();
     new Modal({
         type: "custom",
-        title: `Available Keyboard Shortcuts <i>(v${remote.app.getVersion()})</i>`,
+        title: `Available Keyboard Shortcuts <i>(v${appVersion})</i>`,
         html: `<h5>Using either the on-screen or a physical keyboard, you can use the following shortcuts:</h5>
                 <details open id="shortcutsHelpAccordeon1">
                     <summary>Emulator shortcuts</summary>
@@ -964,7 +1011,7 @@ window.openShortcutsHelp = () => {
                 </details>
                 <br>`,
         buttons: [
-            {label: "Open Shortcuts File", action:`electron.shell.openPath('${shortcutsFile}');electronWin.minimize();`},
+            {label: "Open Shortcuts File", action:`electron.shell.openPath('${shortcutsFile}');window.electronAPI.setWindowSize(960, 540);`},
             {label: "Reload UI", action: "window.location.reload(true);"},
         ]
     }, () => {
@@ -1053,7 +1100,7 @@ window.useAppShortcut = action => {
             window.keyboard.togglePasswordMode();
             return true;
         case "DEV_DEBUG":
-            remote.getCurrentWindow().webContents.toggleDevTools();
+            window.electronAPI.toggleDevTools();
             return true;
         case "DEV_RELOAD":
             window.location.reload(true);
@@ -1064,37 +1111,57 @@ window.useAppShortcut = action => {
     }
 };
 
-// Global keyboard shortcuts
-const globalShortcut = remote.globalShortcut;
-globalShortcut.unregisterAll();
+// Global keyboard shortcuts - initialized after settings loaded
+function initKeyboardShortcuts() {
+    // Unregister any existing shortcuts
+    window.electronAPI.unregisterAllShortcuts();
+
+    // Listen for shortcut triggers from main process
+    window.electronAPI.onShortcutTriggered((id) => {
+        // Parse the shortcut ID to determine action
+        if (id.startsWith("app_")) {
+            window.useAppShortcut(id.substring(4));
+        } else if (id.startsWith("shell_")) {
+            const idx = parseInt(id.substring(6));
+            const cut = window.shortcuts.filter(e => e.type === "shell")[idx];
+            if (cut) {
+                let fn = (cut.linebreak) ? "writelr" : "write";
+                window.term[window.currentTerm][fn](cut.action);
+            }
+        }
+    });
+
+    window.registerKeyboardShortcuts();
+}
 
 window.registerKeyboardShortcuts = () => {
+    // First unregister all
+    window.electronAPI.unregisterAllShortcuts();
+
+    let shellIdx = 0;
     window.shortcuts.forEach(cut => {
-        if (!cut.enabled) return;
+        if (!cut.enabled) {
+            if (cut.type === "shell") shellIdx++;
+            return;
+        }
 
         if (cut.type === "app") {
             if (cut.action === "TAB_X") {
                 for (let i = 1; i <= 5; i++) {
                     let trigger = cut.trigger.replace("X", i);
-                    let dfn = () => { window.useAppShortcut(`TAB_${i}`) };
-                    globalShortcut.register(trigger, dfn);
+                    window.electronAPI.registerShortcut(trigger, `app_TAB_${i}`);
                 }
             } else {
-                globalShortcut.register(cut.trigger, () => {
-                    window.useAppShortcut(cut.action);
-                });
+                window.electronAPI.registerShortcut(cut.trigger, `app_${cut.action}`);
             }
         } else if (cut.type === "shell") {
-            globalShortcut.register(cut.trigger, () => {
-                let fn = (cut.linebreak) ? "writelr" : "write";
-                window.term[window.currentTerm][fn](cut.action);
-            });
+            window.electronAPI.registerShortcut(cut.trigger, `shell_${shellIdx}`);
+            shellIdx++;
         } else {
             console.warn(`${cut.trigger} has unknown type`);
         }
     });
 };
-window.registerKeyboardShortcuts();
 
 // See #361
 window.addEventListener("focus", () => {
@@ -1102,7 +1169,7 @@ window.addEventListener("focus", () => {
 });
 
 window.addEventListener("blur", () => {
-    globalShortcut.unregisterAll();
+    window.electronAPI.unregisterAllShortcuts();
 });
 
 // Prevent showing menu, exiting fullscreen or app with keyboard shortcuts
@@ -1127,7 +1194,7 @@ document.addEventListener("keydown", e => {
 // Fix #265
 window.addEventListener("keyup", e => {
     if (require("os").platform() === "win32" && e.key === "F4" && e.altKey === true) {
-        remote.app.quit();
+        window.electronAPI.quit();
     }
 });
 
@@ -1143,31 +1210,5 @@ window.onresize = () => {
     }
 };
 
-// See #413
-window.resizeTimeout = null;
-let electronWin = remote.getCurrentWindow();
-electronWin.on("resize", () => {
-    if (settings.keepGeometry === false) return;
-    clearTimeout(window.resizeTimeout);
-    window.resizeTimeout = setTimeout(() => {
-        let win = remote.getCurrentWindow();
-        if (win.isFullScreen()) return false;
-        if (win.isMaximized()) {
-            win.unmaximize();
-            win.setFullScreen(true);
-            return false;
-        }
-
-        let size = win.getSize();
-
-        if (size[0] >= size[1]) {
-            win.setSize(size[0], parseInt(size[0] * 9 / 16));
-        } else {
-            win.setSize(size[1], parseInt(size[1] * 9 / 16));
-        }
-    }, 100);
-});
-
-electronWin.on("leave-full-screen", () => {
-    remote.getCurrentWindow().setSize(960, 540);
-});
+// See #413 - Window resize handling via IPC events would require additional implementation
+// For now, keeping geometry enforcement is disabled until window events can be properly handled via IPC

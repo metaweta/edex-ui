@@ -7,11 +7,37 @@ Fork of GitSquared/edex-ui updated for Apple Silicon (M3 Mac) compatibility with
 
 ### Security Fixes
 - **CVE-2023-30856**: Added WebSocket origin validation in `_boot.js` to prevent CSRF attacks
+- **@electron/remote Removal**: Completed full migration away from deprecated @electron/remote module
+
+### @electron/remote Migration (Completed)
+Removed the deprecated @electron/remote module by implementing a proper IPC-based architecture:
+
+1. **Preload Script** (`src/preload.cjs`):
+   - Created preload script exposing safe APIs via `window.electronAPI` and `window.nodeAPI`
+   - Uses `.cjs` extension because `package.json` has `"type": "module"`
+   - Since `contextIsolation: false`, assigns directly to `window` instead of using `contextBridge`
+
+2. **IPC Handlers** in `_boot.js`:
+   - `app-get-version`, `app-get-path`, `app-focus`, `app-relaunch`, `app-quit`
+   - `process-argv`, `screen-get-displays`
+   - `window-toggle-devtools`, `window-set-size`, `window-set-fullscreen`, `window-is-fullscreen`
+   - `clipboard-read`
+   - `global-shortcut-register`, `global-shortcut-unregister-all`
+
+3. **Updated Renderer Files**:
+   - `_renderer.js` - Async initialization using `window.electronAPI.*`
+   - `terminal.class.js` - Async clipboard paste via IPC
+   - `updateChecker.class.js` - Async version check
+
+4. **Font Loading Fix** in `_renderer.js`:
+   - Fixed `waitForFonts()` to properly handle edge cases where document is ready but fonts still loading
+   - Added 5-second timeout fallback to prevent app from hanging
 
 ### ESM/CommonJS Compatibility
 - Renamed `.js` files to `.cjs` for CommonJS compatibility (package.json has `"type": "module"`):
   - `src/assets/vendor/encom-globe.cjs`
   - `src/assets/misc/file-icons-match.cjs`
+  - `src/preload.cjs`
 - Converted ESM-only packages to dynamic imports with fallbacks:
   - `pretty-bytes` in `conninfo.class.js`
 
@@ -28,11 +54,14 @@ Fork of GitSquared/edex-ui updated for Apple Silicon (M3 Mac) compatibility with
 - Added `allowProposedApi: true` to xterm options for `xterm-addon-ligatures` compatibility
 - Added null checks in `keyboard.class.js` for terminal access before initialization
 
-## Remaining Issues
+## Future Security Improvements
 
-### Future Security Improvements
-- **Migrate from @electron/remote to contextBridge/IPC**: `@electron/remote` is deprecated with security concerns
-- **Enable contextIsolation**: Currently disabled; requires IPC migration first
+### Enable Full Context Isolation
+The current implementation uses `contextIsolation: false` because many parts of the codebase still rely on direct Node.js access in the renderer (via `require()`). To enable full context isolation:
+
+1. Migrate all `require()` calls in renderer to use `window.nodeAPI` from preload
+2. Update component classes to use IPC for any remaining Node.js functionality
+3. Set `contextIsolation: true` and `nodeIntegration: false` in BrowserWindow config
 
 ## Architecture Notes
 

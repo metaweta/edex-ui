@@ -316,9 +316,9 @@ class Terminal {
                 this.term.clearSelection();
                 this.clipboard.didCopy = true;
             },
-            paste: () => {
-                const remote = require("@electron/remote");
-                this.write(remote.clipboard.readText());
+            paste: async () => {
+                const text = await window.electronAPI.clipboardReadText();
+                this.write(text);
                 this.clipboard.didCopy = false;
             },
             didCopy: false

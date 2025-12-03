@@ -2,8 +2,17 @@ class UpdateChecker {
     constructor() {
         let https = require("https");
         let electron = require("electron");
-        let remote = require("@electron/remote");
-        let current = remote.app.getVersion();
+        // Get version from cached global (set during renderer init)
+        let current = window.electronAPI ? null : null; // Will be fetched async
+
+        // Initialize async
+        this._init();
+    }
+
+    async _init() {
+        let https = require("https");
+        let electron = require("electron");
+        let current = await window.electronAPI.getVersion();
 
         this._failed = false;
         this._willfail = false;
