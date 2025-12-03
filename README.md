@@ -90,6 +90,32 @@ Sadly, this is technically impossible to do on Windows right now, so the file br
 We provide prebuilt arm64 builds. For other platforms, see [this issue comment](https://github.com/GitSquared/edex-ui/issues/313#issuecomment-443465345), and the thread on issue [#818](https://github.com/GitSquared/edex-ui/issues/818).
 #### Is this repo actively maintained?
 No, after a 3 years run, this project has been archived. See the [announcement](https://github.com/GitSquared/edex-ui/releases/tag/v2.2.8).
+
+---
+
+## About This Fork
+
+This is [metaweta's fork](https://github.com/metaweta/edex-ui) of the original archived eDEX-UI project, focused on modernization and security improvements.
+
+### Changes from Original
+
+**Dependency Updates:**
+- Electron updated to v28 (from v11)
+- node-pty updated to v1.0.0
+- xterm.js updated to v5.x
+- Full support for Apple Silicon (M1/M2/M3 Macs)
+
+**Security Fixes:**
+- **CVE-2023-30856** (WebSocket hijacking): Fixed by adding origin validation in the terminal WebSocket server
+- Ongoing work to enable Electron context isolation for improved security
+
+**Architecture Improvements:**
+- Migrated renderer code to use IPC-based APIs in preparation for context isolation
+- Added esbuild bundler for browser-compatible renderer libraries
+- Renderer classes now use `window.nodeAPI` bridge pattern
+
+---
+
 #### How did you make this?
 Glad you're interested! See [#272](https://github.com/GitSquared/edex-ui/issues/272).
 #### This is so cool.
