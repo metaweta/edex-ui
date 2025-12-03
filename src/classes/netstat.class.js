@@ -41,29 +41,37 @@ class Netstat {
             this.updateInfo();
         }, 2000);
 
-        // Init GeoIP integrated backend
+        // Init GeoIP integrated backend - uses IPC to main process
+        const { ipcRenderer } = require("electron");
         this.geoLookup = {
-            get: () => null
+            get: (ip) => {
+                // This is a synchronous wrapper - actual lookup happens via IPC
+                // We cache results to avoid repeated IPC calls
+                if (!this._geoCache) this._geoCache = {};
+                if (this._geoCache[ip] !== undefined) {
+                    return this._geoCache[ip];
+                }
+                // Return null synchronously, async lookup will update cache
+                return null;
+            }
         };
-        // Use dynamic import for ESM-only packages
-        this._initGeoIP();
-    }
-    async _initGeoIP() {
-        try {
-            const geolite2 = await import("geolite2-redist");
-            const maxmind = await import("maxmind");
-            const path = require("path");
-            const remote = require("@electron/remote");
-            await geolite2.downloadDbs(path.join(remote.app.getPath("userData"), "geoIPcache"));
-            const lookup = await geolite2.open('GeoLite2-City', dbPath => {
-                return maxmind.default ? maxmind.default.open(dbPath) : maxmind.open(dbPath);
-            });
-            this.geoLookup = lookup;
-            this.lastconn.finished = true;
-        } catch (e) {
-            console.error("Failed to initialize GeoIP:", e);
-            this.lastconn.finished = true; // Allow app to continue without GeoIP
-        }
+        // Async lookup function that updates cache
+        this.geoLookupAsync = async (ip) => {
+            if (!this._geoCache) this._geoCache = {};
+            if (this._geoCache[ip] !== undefined) {
+                return this._geoCache[ip];
+            }
+            try {
+                const result = await ipcRenderer.invoke("geoip-lookup", ip);
+                this._geoCache[ip] = result;
+                return result;
+            } catch (e) {
+                console.error("GeoIP lookup error:", e);
+                return null;
+            }
+        };
+        this.lastconn.finished = true;
+        console.log("GeoIP: Using IPC-based lookup (main process)");
     }
     updateInfo() {
         window.si.networkInterfaces().then(async data => {

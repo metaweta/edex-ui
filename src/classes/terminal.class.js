@@ -222,11 +222,16 @@ class Terminal {
             }
 
             // See #397
-            if (!window.settings.experimentalGlobeFeatures) return;
+            if (!window.settings.experimentalGlobeFeatures) {
+                console.log("Globe features disabled");
+                return;
+            }
             let ips = e.data.match(/((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/g);
             if (ips !== null && ips.length >= 1) {
                 ips = ips.filter((val, index, self) => { return self.indexOf(val) === index; });
+                console.log("Detected IPs in terminal output:", ips);
                 ips.forEach(ip => {
+                    console.log("Adding marker for IP:", ip);
                     window.mods.globe.addTemporaryConnectedMarker(ip);
                 });
             }

@@ -103,7 +103,7 @@ if (!fs.existsSync(settingsFile)) {
         excludeThreadsFromToplist: true,
         hideDotfiles: false,
         fsListView: false,
-        experimentalGlobeFeatures: false,
+        experimentalGlobeFeatures: true,
         experimentalFeatures: false
     }, "", 4));
     signale.info(`Default settings written to ${settingsFile}`);
@@ -285,6 +285,32 @@ app.on('ready', async () => {
     signale.pending("Starting multithreaded calls controller...");
     await import("./_multithread.js");
 
+    // Initialize GeoIP database in main process (ESM packages work here)
+    signale.pending("Initializing GeoIP database...");
+    let geoLookup = null;
+    try {
+        const geolite2 = await import("geolite2-redist");
+        const maxmind = await import("maxmind");
+        const geoIPCachePath = join(app.getPath("userData"), "geoIPcache");
+        await geolite2.downloadDbs(geoIPCachePath);
+        geoLookup = await geolite2.open('GeoLite2-City', dbPath => {
+            return maxmind.default ? maxmind.default.open(dbPath) : maxmind.open(dbPath);
+        });
+        signale.success("GeoIP database initialized!");
+    } catch (e) {
+        signale.error("Failed to initialize GeoIP:", e.message);
+    }
+
+    // IPC handler for GeoIP lookups
+    ipcMain.handle("geoip-lookup", (event, ip) => {
+        if (!geoLookup) return null;
+        try {
+            return geoLookup.get(ip);
+        } catch (e) {
+            return null;
+        }
+    });
+
     createWindow(settings, lastWindowState);
 
     // Support for more terminals, used for creating tabs (currently limited to 4 extra terms)
@@ -379,11 +405,13 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-    tty.close();
-    Object.keys(extraTtys).forEach(key => {
-        if (extraTtys[key] !== null) {
-            extraTtys[key].close();
-        }
-    });
+    if (tty) tty.close();
+    if (extraTtys) {
+        Object.keys(extraTtys).forEach(key => {
+            if (extraTtys[key] !== null) {
+                extraTtys[key].close();
+            }
+        });
+    }
     signale.complete("Shutting down...");
 });

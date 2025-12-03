@@ -13,8 +13,15 @@ Fork of GitSquared/edex-ui updated for Apple Silicon (M3 Mac) compatibility with
   - `src/assets/vendor/encom-globe.cjs`
   - `src/assets/misc/file-icons-match.cjs`
 - Converted ESM-only packages to dynamic imports with fallbacks:
-  - `geolite2-redist` and `maxmind` in `netstat.class.js`
   - `pretty-bytes` in `conninfo.class.js`
+
+### GeoIP/Globe Markers Fix
+- **Problem**: `geolite2-redist` and `maxmind` are pure ESM packages that cannot be loaded in Electron's renderer process
+- **Solution**: Moved GeoIP initialization to main process (`_boot.js`) where ESM dynamic imports work
+- Added IPC handler `geoip-lookup` in main process for database lookups
+- `netstat.class.js` now uses `ipcRenderer.invoke("geoip-lookup", ip)` for async lookups
+- `locationGlobe.class.js` `addTemporaryConnectedMarker()` changed to async function
+- Globe markers now work when running `traceroute` or any command that outputs IP addresses
 
 ### Terminal Fixes
 - Split `terminal.class.js` into client and server versions for proper module separation
@@ -22,9 +29,6 @@ Fork of GitSquared/edex-ui updated for Apple Silicon (M3 Mac) compatibility with
 - Added null checks in `keyboard.class.js` for terminal access before initialization
 
 ## Remaining Issues
-
-### Fixed
-- **GeoIP lookup errors**: Added null check in `netstat.class.js` for geoLookup result before accessing `.location`
 
 ### Future Security Improvements
 - **Migrate from @electron/remote to contextBridge/IPC**: `@electron/remote` is deprecated with security concerns

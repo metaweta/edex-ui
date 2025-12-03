@@ -139,12 +139,23 @@ class LocationGlobe {
         this.globe.addMarker(randomLat, randomLong, '');
         this.globe.addMarker(randomLat - 20, randomLong + 150, '', true);
     }
-    addTemporaryConnectedMarker(ip) {
-        let data = window.mods.netstat.geoLookup.get(ip);
-        let geo = (data !== null ? data.location : {});
+    async addTemporaryConnectedMarker(ip) {
+        console.log("addTemporaryConnectedMarker called for IP:", ip);
+        let data = null;
+        try {
+            // Use async lookup via IPC to main process
+            data = await window.mods.netstat.geoLookupAsync(ip);
+            console.log("GeoIP lookup result for", ip, ":", data);
+        } catch (e) {
+            console.error("GeoIP lookup error for", ip, ":", e);
+            return;
+        }
+        let geo = (data !== null && data.location ? data.location : {});
+        console.log("Geo location:", geo);
         if (geo.latitude && geo.longitude) {
             const lat = Number(geo.latitude);
             const lon = Number(geo.longitude);
+            console.log("Adding marker at lat:", lat, "lon:", lon);
 
             window.mods.globe.conns.push({
                 ip,
@@ -154,6 +165,8 @@ class LocationGlobe {
             setTimeout(() => {
                 mark.remove();
             }, 3000);
+        } else {
+            console.log("No geo coordinates found for IP:", ip);
         }
     }
     removeMarkers() {
