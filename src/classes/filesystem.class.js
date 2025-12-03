@@ -486,12 +486,17 @@ class FilesystemDisplay {
 
             // Render animation
             let id = 0;
+            let soundCount = 0;
+            const maxSounds = 20;
             while (this.filesContainer.childNodes[id]) {
                 let e = this.filesContainer.childNodes[id];
                 e.setAttribute("class", e.className.replace(" animationWait", ""));
 
                 if (window.settings.hideDotfiles !== true || e.className.indexOf("hidden") === -1) {
-                    window.audioManager.folder.play();
+                    if (soundCount < maxSounds) {
+                        window.audioManager.folder.play();
+                        soundCount++;
+                    }
                     await _delay(30);
                 }
 
