@@ -99,7 +99,7 @@ class Cpuinfo {
             // Init updater
             this.updatingCPUload = false;
             this.updateCPUload();
-            if (process.platform !== "win32") {this.updateCPUtemp();}
+            if (window.nodeAPI.platform !== "win32") {this.updateCPUtemp();}
             this.updatingCPUspeed = false;
             this.updateCPUspeed();
             this.updatingCPUtasks = false;
@@ -107,7 +107,7 @@ class Cpuinfo {
             this.loadUpdater = setInterval(() => {
                 this.updateCPUload();
             }, 500);
-            if (process.platform !== "win32") {
+            if (window.nodeAPI.platform !== "win32") {
                 this.tempUpdater = setInterval(() => {
                     this.updateCPUtemp();
                 }, 2000);
