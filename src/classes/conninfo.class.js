@@ -22,9 +22,9 @@ class Conninfo {
             this._pb = module.default || module;
         }).catch(e => console.error("Failed to load pretty-bytes:", e));
 
-        // Init Smoothie - use global window.Smoothie
-        const TimeSeries = window.Smoothie.TimeSeries;
-        const SmoothieChart = window.Smoothie.SmoothieChart;
+        // Init Smoothie - use globals from bundle
+        const TimeSeries = window.TimeSeries;
+        const SmoothieChart = window.SmoothieChart;
 
         // Set chart options
         let chartOptions = [{

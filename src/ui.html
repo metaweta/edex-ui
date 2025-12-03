@@ -35,6 +35,10 @@
 
         <!-- Load dependency js -->
         <script src="node_modules/pdfjs-dist/build/pdf.mjs" type="module"></script>
+        <!-- Load bundled browser libraries (xterm, howler, smoothie, color) -->
+        <script src="dist/renderer-libs.bundle.js"></script>
+        <!-- Load xterm CSS -->
+        <link rel="stylesheet" href="node_modules/xterm/css/xterm.css" />
         <!-- Load main modules classes -->
         <script src="classes/modal.class.js"></script>
         <script src="classes/terminal.class.js"></script>

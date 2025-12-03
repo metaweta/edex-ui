@@ -20,8 +20,9 @@ class Terminal {
         window.electronAPI.log("info", "AttachAddon loaded");
         const FitAddon = window.FitAddon;
         window.electronAPI.log("info", "FitAddon loaded");
+        // LigaturesAddon requires Node.js fs/path - only available when nodeIntegration is enabled
         const LigaturesAddon = window.LigaturesAddon;
-        window.electronAPI.log("info", "LigaturesAddon loaded");
+        window.electronAPI.log("info", LigaturesAddon ? "LigaturesAddon loaded" : "LigaturesAddon not available (requires nodeIntegration)");
         const WebglAddon = window.WebglAddon;
         window.electronAPI.log("info", "All addons loaded");
         const color = window.colorLib;
@@ -157,8 +158,11 @@ class Terminal {
         this.term.loadAddon(fitAddon);
         this.term.open(document.getElementById(opts.parentId));
         this.term.loadAddon(new WebglAddon());
-        let ligaturesAddon = new LigaturesAddon();
-        this.term.loadAddon(ligaturesAddon);
+        // Only load LigaturesAddon if available (requires nodeIntegration for fs access)
+        if (LigaturesAddon) {
+            let ligaturesAddon = new LigaturesAddon();
+            this.term.loadAddon(ligaturesAddon);
+        }
         this.term.attachCustomKeyEventHandler(e => {
             window.keyboard.keydownHandler(e);
             return true;

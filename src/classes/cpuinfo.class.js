@@ -8,9 +8,9 @@ class Cpuinfo {
         </div>`;
         this.container = document.getElementById("mod_cpuinfo");
 
-        // Init Smoothie - use global window.Smoothie
-        const TimeSeries = window.Smoothie.TimeSeries;
-        const SmoothieChart = window.Smoothie.SmoothieChart;
+        // Init Smoothie - use globals from bundle
+        const TimeSeries = window.TimeSeries;
+        const SmoothieChart = window.SmoothieChart;
 
         this.series = [];
         this.charts = [];

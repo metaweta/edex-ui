@@ -65,9 +65,35 @@ Migrating renderer code from direct Node.js `require()` calls to use `window.nod
 - `locationGlobe.class.js` - Uses window globals for geodata and globe library
 - `updateChecker.class.js` - Uses `window.electronAPI` for version checks and external links
 
+### Browser Library Bundling (Completed)
+Added esbuild bundler to bundle browser-compatible libraries for renderer process:
+
+1. **Build System** (`esbuild.config.mjs`):
+   - Bundles `xterm`, `xterm-addon-attach`, `xterm-addon-fit`, `xterm-addon-webgl`, `howler`, `smoothie`, `color`
+   - Outputs to `src/dist/renderer-libs.bundle.js` (~730kb)
+   - Runs automatically via `prestart` npm script
+
+2. **Entry Point** (`src/renderer-libs.js`):
+   - Imports browser-compatible libraries and exposes as window globals
+   - `window.XTerm`, `window.AttachAddon`, `window.FitAddon`, `window.WebglAddon`
+   - `window.Howl`, `window.Howler`
+   - `window.SmoothieChart`, `window.TimeSeries`
+   - `window.colorLib`
+
+3. **Note on xterm-addon-ligatures**:
+   - Requires Node.js fs/path access to read font files
+   - Cannot be bundled for browser - still requires nodeIntegration
+   - Made optional in terminal.class.js (gracefully skipped if unavailable)
+
+4. **Updated Class Files**:
+   - `conninfo.class.js` - Uses `window.SmoothieChart`, `window.TimeSeries`
+   - `cpuinfo.class.js` - Uses `window.SmoothieChart`, `window.TimeSeries`
+   - `audiofx.class.js` - Already uses `window.Howl`, `window.Howler`
+   - `terminal.class.js` - Uses window globals from bundle
+
 **Remaining Work for Full Context Isolation:**
-- Bundle browser-compatible libraries (xterm, howler, smoothie, color) - currently still using require()
 - Enable `contextIsolation: true` and `nodeIntegration: false` in BrowserWindow config
+- Note: Ligatures addon will not work with full isolation (requires fs access)
 - Testing with full isolation enabled
 
 ## Context Isolation Refactoring Plan
