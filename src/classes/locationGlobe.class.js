@@ -2,10 +2,8 @@ class LocationGlobe {
     constructor(parentId) {
         if (!parentId) throw "Missing parameters";
 
-        const path = require("path");
-
-        this._geodata = require(path.join(__dirname, "assets/misc/grid.json"));
-        require(path.join(__dirname, "assets/vendor/encom-globe.cjs"));
+        // Use globally loaded geodata and ENCOM from _renderer.js
+        this._geodata = window.globeGeodata;
         this.ENCOM = window.ENCOM;
 
         // Create DOM and include lib

@@ -8,9 +8,9 @@ class Cpuinfo {
         </div>`;
         this.container = document.getElementById("mod_cpuinfo");
 
-        // Init Smoothie
-        let TimeSeries = require("smoothie").TimeSeries;
-        let SmoothieChart = require("smoothie").SmoothieChart;
+        // Init Smoothie - use global window.Smoothie
+        const TimeSeries = window.Smoothie.TimeSeries;
+        const SmoothieChart = window.Smoothie.SmoothieChart;
 
         this.series = [];
         this.charts = [];
@@ -37,8 +37,8 @@ class Cpuinfo {
                 </div>
                 <div>
                     <div>
-                        <h1>${(process.platform === "win32") ? "CORES" : "TEMP"}<br>
-                        <i id="mod_cpuinfo_temp">${(process.platform === "win32") ? data.cores : "--°C"}</i></h1>
+                        <h1>${(window.nodeAPI.platform === "win32") ? "CORES" : "TEMP"}<br>
+                        <i id="mod_cpuinfo_temp">${(window.nodeAPI.platform === "win32") ? data.cores : "--°C"}</i></h1>
                     </div>
                     <div>
                         <h1>SPD<br>

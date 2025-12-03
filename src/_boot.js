@@ -371,6 +371,207 @@ app.on('ready', async () => {
         registeredShortcuts.clear();
     });
 
+    // File system IPC handlers for context isolation
+    ipcMain.handle("fs-read-file", (event, filePath, options) => {
+        try {
+            return fs.readFileSync(filePath, options);
+        } catch (e) {
+            throw new Error(`Failed to read file: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-write-file", (event, filePath, data, options) => {
+        try {
+            fs.writeFileSync(filePath, data, options);
+            return true;
+        } catch (e) {
+            throw new Error(`Failed to write file: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-readdir", (event, dirPath) => {
+        try {
+            return fs.readdirSync(dirPath);
+        } catch (e) {
+            throw new Error(`Failed to read directory: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-stat", (event, filePath) => {
+        try {
+            const stats = fs.statSync(filePath);
+            return {
+                isFile: stats.isFile(),
+                isDirectory: stats.isDirectory(),
+                isSymbolicLink: stats.isSymbolicLink(),
+                size: stats.size,
+                mtime: stats.mtime.getTime(),
+                atime: stats.atime.getTime(),
+                ctime: stats.ctime.getTime(),
+                mode: stats.mode
+            };
+        } catch (e) {
+            throw new Error(`Failed to stat: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-lstat", (event, filePath) => {
+        try {
+            const stats = fs.lstatSync(filePath);
+            return {
+                isFile: stats.isFile(),
+                isDirectory: stats.isDirectory(),
+                isSymbolicLink: stats.isSymbolicLink(),
+                size: stats.size,
+                mtime: stats.mtime.getTime(),
+                atime: stats.atime.getTime(),
+                ctime: stats.ctime.getTime(),
+                mode: stats.mode
+            };
+        } catch (e) {
+            throw new Error(`Failed to lstat: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-exists", (event, filePath) => {
+        return fs.existsSync(filePath);
+    });
+
+    ipcMain.handle("fs-realpath", (event, filePath) => {
+        try {
+            return fs.realpathSync(filePath);
+        } catch (e) {
+            throw new Error(`Failed to resolve realpath: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-mkdir", (event, dirPath, options) => {
+        try {
+            fs.mkdirSync(dirPath, options);
+            return true;
+        } catch (e) {
+            throw new Error(`Failed to create directory: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-rename", (event, oldPath, newPath) => {
+        try {
+            fs.renameSync(oldPath, newPath);
+            return true;
+        } catch (e) {
+            throw new Error(`Failed to rename: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-unlink", (event, filePath) => {
+        try {
+            fs.unlinkSync(filePath);
+            return true;
+        } catch (e) {
+            throw new Error(`Failed to delete file: ${e.message}`);
+        }
+    });
+
+    ipcMain.handle("fs-rmdir", (event, dirPath, options) => {
+        try {
+            fs.rmdirSync(dirPath, options);
+            return true;
+        } catch (e) {
+            throw new Error(`Failed to remove directory: ${e.message}`);
+        }
+    });
+
+    // Load JSON file helper
+    ipcMain.handle("load-json-file", (event, filePath) => {
+        try {
+            const content = fs.readFileSync(filePath, { encoding: 'utf-8' });
+            return JSON.parse(content);
+        } catch (e) {
+            throw new Error(`Failed to load JSON file: ${e.message}`);
+        }
+    });
+
+    // OS info handlers
+    ipcMain.handle("os-platform", () => process.platform);
+    ipcMain.handle("os-uptime", async () => {
+        const os = await import('os');
+        return os.default.uptime();
+    });
+    ipcMain.handle("get-username", async () => {
+        try {
+            const username = await import('username');
+            return await (username.default ? username.default() : username());
+        } catch (e) {
+            return process.env.USER || process.env.USERNAME || 'user';
+        }
+    });
+
+    // HTTPS request handler for update checker and external IP
+    ipcMain.handle("https-get", (event, options) => {
+        return new Promise((resolve, reject) => {
+            import('https').then(https => {
+                const req = https.default.get(options, res => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        resolve({
+                            statusCode: res.statusCode,
+                            headers: res.headers,
+                            data: data
+                        });
+                    });
+                });
+                req.on('error', e => reject(e));
+                req.setTimeout(options.timeout || 10000, () => {
+                    req.destroy();
+                    reject(new Error('Request timeout'));
+                });
+            });
+        });
+    });
+
+    // Network socket connectivity test
+    ipcMain.handle("net-socket-test", (event, port, host, timeout) => {
+        return new Promise((resolve) => {
+            import('net').then(net => {
+                const socket = new net.default.Socket();
+                socket.setTimeout(timeout || 1000);
+                socket.on('connect', () => {
+                    socket.destroy();
+                    resolve(true);
+                });
+                socket.on('timeout', () => {
+                    socket.destroy();
+                    resolve(false);
+                });
+                socket.on('error', () => {
+                    socket.destroy();
+                    resolve(false);
+                });
+                socket.connect(port, host);
+            });
+        });
+    });
+
+    // Open external URL
+    ipcMain.handle("open-external", (event, url) => {
+        return shell.openExternal(url);
+    });
+
+    // Path operations
+    ipcMain.handle("path-join", (event, ...args) => {
+        return join(...args);
+    });
+
+    ipcMain.handle("path-dirname", (event, p) => {
+        return dirname(p);
+    });
+
+    ipcMain.handle("path-basename", async (event, p, ext) => {
+        const path = await import('path');
+        return ext ? path.default.basename(p, ext) : path.default.basename(p);
+    });
+
     createWindow(settings, lastWindowState);
 
     // Support for more terminals, used for creating tabs (currently limited to 4 extra terms)

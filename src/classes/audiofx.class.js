@@ -1,51 +1,53 @@
 class AudioManager {
     constructor() {
-        const path = require("path");
-        const {Howl, Howler} = require("howler");
+        // Howler is loaded globally via window.Howl/window.Howler
+        const {Howl, Howler} = window;
+        // Use nodeAPI.joinSync for path operations
+        const audioPath = (file) => window.nodeAPI.joinSync(__dirname, "assets", "audio", file);
 
         if (window.settings.audio === true) {
             if(window.settings.disableFeedbackAudio === false) {
                 this.stdout = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "stdout.wav")],
+                    src: [audioPath("stdout.wav")],
                     volume: 0.4
                 });
                 this.stdin = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "stdin.wav")],
+                    src: [audioPath("stdin.wav")],
                     volume: 0.4
                 });
                 this.folder = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "folder.wav")]
+                    src: [audioPath("folder.wav")]
                 });
                 this.granted = new Howl({
-                    src: [path.join(__dirname, "assets", "audio", "granted.wav")]
+                    src: [audioPath("granted.wav")]
                 });
             }
             this.keyboard = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "keyboard.wav")]
+                src: [audioPath("keyboard.wav")]
             });
             this.theme = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "theme.wav")]
+                src: [audioPath("theme.wav")]
             });
             this.expand = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "expand.wav")]
+                src: [audioPath("expand.wav")]
             });
             this.panels = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "panels.wav")]
+                src: [audioPath("panels.wav")]
             });
             this.scan = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "scan.wav")]
+                src: [audioPath("scan.wav")]
             });
             this.denied = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "denied.wav")]
+                src: [audioPath("denied.wav")]
             });
             this.info = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "info.wav")]
+                src: [audioPath("info.wav")]
             });
             this.alarm = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "alarm.wav")]
+                src: [audioPath("alarm.wav")]
             });
             this.error = new Howl({
-                src: [path.join(__dirname, "assets", "audio", "error.wav")]
+                src: [audioPath("error.wav")]
             });
 
             Howler.volume(window.settings.audioVolume);

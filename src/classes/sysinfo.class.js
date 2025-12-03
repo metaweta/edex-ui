@@ -2,9 +2,10 @@ class Sysinfo {
     constructor(parentId) {
         if (!parentId) throw "Missing parameters";
 
-        // See #255
+        // See #255 - Use nodeAPI.platform (synchronously available from preload)
         let os;
-        switch (require("os").platform()) {
+        const platform = window.nodeAPI.platform;
+        switch (platform) {
             case "darwin":
                 os = "macOS";
                 break;
@@ -12,7 +13,7 @@ class Sysinfo {
                 os = "win";
                 break;
             default:
-                os = require("os").platform();
+                os = platform;
         }
 
         // Create DOM
@@ -97,9 +98,9 @@ class Sysinfo {
             this.updateDate();
         }, timeToNewDay);
     }
-    updateUptime() {
+    async updateUptime() {
         let uptime = {
-            raw: Math.floor(require("os").uptime()),
+            raw: Math.floor(await window.nodeAPI.osUptime()),
             days: 0,
             hours: 0,
             minutes: 0

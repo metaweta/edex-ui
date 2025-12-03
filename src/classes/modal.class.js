@@ -1,13 +1,18 @@
 window.modals = {};
 
+// Generate unique ID using crypto API (no require needed)
+function generateId() {
+    return crypto.randomUUID().replace(/-/g, '').substring(0, 21);
+}
+
 class Modal {
     constructor(options, onclose) {
         if (!options || !options.type) throw "Missing parameters";
 
         this.type = options.type;
-        this.id = require("nanoid").nanoid();
+        this.id = generateId();
         while (typeof window.modals[this.id] !== "undefined") {
-            this.id = require("nanoid")();
+            this.id = generateId();
         }
         this.title = options.title || options.type || "Modal window";
         this.message = options.message || "Lorem ipsum dolor sit amet.";

@@ -71,24 +71,61 @@ window.electronAPI = {
     setKbOverride: (value) => ipcRenderer.send('setKbOverride', value),
 
     // Logging (existing)
-    log: (type, content) => ipcRenderer.send('log', type, content)
+    log: (type, content) => ipcRenderer.send('log', type, content),
+
+    // Shell operations
+    openExternal: (url) => ipcRenderer.invoke('open-external', url)
 };
 
-// Also expose Node.js APIs that are currently used directly in renderer
-// These should eventually be migrated to IPC as well, but for now we keep compatibility
+// Node.js APIs exposed via IPC for context isolation
+// When contextIsolation is enabled, these will be the only way to access Node APIs
 window.nodeAPI = {
-    // Path operations
-    join: (...args) => require('path').join(...args),
-    dirname: (p) => require('path').dirname(p),
+    // Process info (available synchronously)
+    platform: process.platform,
+    versions: process.versions,
 
-    // File system (read-only for safety)
+    // Path operations via IPC
+    join: (...args) => ipcRenderer.invoke('path-join', ...args),
+    dirname: (p) => ipcRenderer.invoke('path-dirname', p),
+    basename: (p, ext) => ipcRenderer.invoke('path-basename', p, ext),
+
+    // File system operations via IPC (all async)
+    readFile: (path, options) => ipcRenderer.invoke('fs-read-file', path, options),
+    writeFile: (path, data, options) => ipcRenderer.invoke('fs-write-file', path, data, options),
+    readdir: (path) => ipcRenderer.invoke('fs-readdir', path),
+    stat: (path) => ipcRenderer.invoke('fs-stat', path),
+    lstat: (path) => ipcRenderer.invoke('fs-lstat', path),
+    exists: (path) => ipcRenderer.invoke('fs-exists', path),
+    realpath: (path) => ipcRenderer.invoke('fs-realpath', path),
+    mkdir: (path, options) => ipcRenderer.invoke('fs-mkdir', path, options),
+    rename: (oldPath, newPath) => ipcRenderer.invoke('fs-rename', oldPath, newPath),
+    unlink: (path) => ipcRenderer.invoke('fs-unlink', path),
+    rmdir: (path, options) => ipcRenderer.invoke('fs-rmdir', path, options),
+
+    // JSON file loading
+    loadJsonFile: (path) => ipcRenderer.invoke('load-json-file', path),
+
+    // OS info
+    osUptime: () => ipcRenderer.invoke('os-uptime'),
+    getUsername: () => ipcRenderer.invoke('get-username'),
+
+    // Network operations
+    httpsGet: (options) => ipcRenderer.invoke('https-get', options),
+    netSocketTest: (port, host, timeout) => ipcRenderer.invoke('net-socket-test', port, host, timeout),
+
+    // Shell operations
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+    // Backwards compatibility - sync versions (still work while nodeIntegration is enabled)
+    // These will be removed once all code is migrated to async versions
     readFileSync: (path, options) => require('fs').readFileSync(path, options),
     existsSync: (path) => require('fs').existsSync(path),
     readdirSync: (path) => require('fs').readdirSync(path),
     statSync: (path) => require('fs').statSync(path),
+    lstatSync: (path) => require('fs').lstatSync(path),
     writeFileSync: (path, data, options) => require('fs').writeFileSync(path, data, options),
-
-    // Process info
-    platform: process.platform,
-    versions: process.versions
+    joinSync: (...args) => require('path').join(...args),
+    dirnameSync: (p) => require('path').dirname(p),
+    basenameSync: (p, ext) => ext ? require('path').basename(p, ext) : require('path').basename(p),
+    realpathSync: (path) => require('fs').realpathSync(path)
 };

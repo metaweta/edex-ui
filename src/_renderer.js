@@ -85,6 +85,21 @@ let appVersion = "";
         }
         _loadTheme(require(path.join(themesDir, window.settings.theme+".json")));
 
+        // Load file icons globally for components that need them
+        window.fileIcons = require("./assets/icons/file-icons.json");
+
+        // Load Howler globally for AudioManager
+        const howlerModule = require("howler");
+        window.Howl = howlerModule.Howl;
+        window.Howler = howlerModule.Howler;
+
+        // Load Smoothie globally for chart components
+        window.Smoothie = require("smoothie");
+
+        // Load globe geodata and encom-globe for LocationGlobe
+        window.globeGeodata = require("./assets/misc/grid.json");
+        require("./assets/vendor/encom-globe.cjs");
+
         // Same for keyboard override/hotswitch
         const kbOverride = await window.electronAPI.getKbOverride();
         if (kbOverride !== null) {

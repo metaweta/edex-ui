@@ -2,7 +2,8 @@ class MediaPlayer {
     constructor(opts) {
         const modalElementId = "modal_" + opts.modalId;
         const type = opts.type;
-        const icons = require("./assets/icons/file-icons.json");
+        // Use globally loaded icons instead of require
+        const icons = window.fileIcons;
         const iconcolor = `rgb(${window.theme.r}, ${window.theme.g}, ${window.theme.b})`;
         const mediaContainer = document.getElementById(modalElementId).querySelector(".media_container");
         const media = document.getElementById(modalElementId).querySelector(type);
