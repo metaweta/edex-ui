@@ -18,9 +18,8 @@ const require = createRequire(import.meta.url);
 
 let win, tty, extraTtys;
 
-process.on("uncaughtException", e => {
+function cleanCrash(e) {
     signale.fatal(e);
-    dialog.showErrorBox("eDEX-UI crashed", e.message || "Cannot retrieve error message.");
     if (tty) {
         tty.close();
     }
@@ -31,7 +30,17 @@ process.on("uncaughtException", e => {
             }
         });
     }
+    app.releaseSingleInstanceLock();
     process.exit(1);
+}
+
+process.on("uncaughtException", e => {
+    dialog.showErrorBox("eDEX-UI crashed", e.message || "Cannot retrieve error message.");
+    cleanCrash(e);
+});
+
+process.on("unhandledRejection", e => {
+    cleanCrash(e);
 });
 
 signale.start(`Starting eDEX-UI v${app.getVersion()}`);
@@ -674,5 +683,6 @@ app.on('before-quit', () => {
             }
         });
     }
+    app.releaseSingleInstanceLock();
     signale.complete("Shutting down...");
 });
