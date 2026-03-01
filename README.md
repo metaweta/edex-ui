@@ -1,45 +1,34 @@
-<p align="center">
-  <br>
-  <img alt="Logo" src="media/logo.png">
-  <br><br>
-  <a href="https://lgtm.com/projects/g/GitSquared/edex-ui/context:javascript"><img alt="undefined" src="https://img.shields.io/lgtm/grade/javascript/g/GitSquared/edex-ui.svg?logo=lgtm&logoWidth=18"/></a>
-  <br>
-  <a href="https://github.com/GitSquared/edex-ui/releases/latest"><img alt="undefined" src="https://img.shields.io/github/release/GitSquared/edex-ui.svg?style=popout"></a>
-  <a href="#featured-in"><img alt="undefined" src="https://img.shields.io/github/downloads/GitSquared/edex-ui/total.svg?style=popout"></a>
-  <a href="https://github.com/GitSquared/edex-ui/blob/master/LICENSE"><img alt="undefined" src="https://img.shields.io/github/license/GitSquared/edex-ui.svg?style=popout"></a>
-  <br>
-  <a href="https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Windows.exe" target="_blank"><img alt="undefined" src="https://badgen.net/badge/Download/Windows/?color=blue&icon=windows&label"></a>
-  <a href="https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-macOS.dmg" target="_blank"><img alt="undefined" src="https://badgen.net/badge/Download/macOS/?color=grey&icon=apple&label"></a>
-  <a href="https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Linux-x86_64.AppImage" target="_blank"><img alt="undefined" src="https://badgen.net/badge/Download/Linux64/?color=orange&icon=terminal&label"></a>
-  <a href="https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Linux-arm64-AppImage" target="_blank"><img alt="undefined" src="https://badgen.net/badge/Download/LinuxArm64/?color=orange&icon=terminal&label"></a>
-  <a href="https://aur.archlinux.org/packages/edex-ui" target="_blank"><img alt="undefined" src="https://badgen.net/badge/AUR/Package/cyan"></a>
-  <br>
-  <a href="https://github.com/GitSquared/edex-ui/releases/tag/v2.2.8"><strong><i>(Project archived oct. 18th 2021)</i></strong></a>
-  <br><br><br>
-</p>
+![Logo](media/logo.png)
+
+[![LGTM Grade](https://img.shields.io/lgtm/grade/javascript/g/GitSquared/edex-ui.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/GitSquared/edex-ui/context:javascript)
+
+[![Release](https://img.shields.io/github/release/GitSquared/edex-ui.svg?style=popout)](https://github.com/GitSquared/edex-ui/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/GitSquared/edex-ui/total.svg?style=popout)](#featured-in)
+[![License](https://img.shields.io/github/license/GitSquared/edex-ui.svg?style=popout)](https://github.com/GitSquared/edex-ui/blob/master/LICENSE)
+
+[![Download Windows](https://badgen.net/badge/Download/Windows/?color=blue&icon=windows&label)](https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Windows.exe)
+[![Download macOS](https://badgen.net/badge/Download/macOS/?color=grey&icon=apple&label)](https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-macOS.dmg)
+[![Download Linux64](https://badgen.net/badge/Download/Linux64/?color=orange&icon=terminal&label)](https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Linux-x86_64.AppImage)
+[![Download LinuxArm64](https://badgen.net/badge/Download/LinuxArm64/?color=orange&icon=terminal&label)](https://github.com/GitSquared/edex-ui/releases/download/v2.2.8/eDEX-UI-Linux-arm64-AppImage)
+[![AUR Package](https://badgen.net/badge/AUR/Package/cyan)](https://aur.archlinux.org/packages/edex-ui)
+
+[***(Project archived oct. 18th 2021)***](https://github.com/GitSquared/edex-ui/releases/tag/v2.2.8)
 
 eDEX-UI is a fullscreen, cross-platform terminal emulator and system monitor that looks and feels like a sci-fi computer interface.
 
 ---
 
-<a href="https://youtu.be/BGeY1rK19zA">
-  <img align="right" width="400" alt="Demo on YouTube" src="media/youtube-demo-teaser.gif">
-</a>
+[![Demo on YouTube](media/youtube-demo-teaser.gif)](https://youtu.be/BGeY1rK19zA)
 
 Heavily inspired from the [TRON Legacy movie effects](https://web.archive.org/web/20170511000410/http://jtnimoy.com/blogs/projects/14881671) (especially the [Board Room sequence](https://gmunk.com/TRON-Board-Room)), the eDEX-UI project was originally meant to be *"[DEX-UI](https://github.com/seenaburns/dex-ui) with less « art » and more « distributable software »"*.
 
 While keeping a futuristic look and feel, it strives to maintain a certain level of functionality and to be usable in real-life scenarios, with the larger goal of bringing science-fiction UXs to the mainstream.
 
-<br>
-
 It might or might not be a joke taken too seriously.
-
 
 ---
 
-<p align="center">
-  <em>Jump to: <br><a href="#features">Features</a> — <a href="#screenshots">Screenshots</a> — <a href="#qa">Questions & Answers</a> — <strong><a href="#how-do-i-get-it">Download</a></strong> — <a href="#featured-in">Featured In</a> — <a href="#useful-commands-for-the-nerds">Contributor Instructions</a> — <a href="#credits">Credits</a></em>
-</p>
+*Jump to: [Features](#features) — [Screenshots](#screenshots) — [Questions & Answers](#qa) — **[Download](#how-do-i-get-it)** — [Featured In](#featured-in) — [Contributor Instructions](#useful-commands-for-the-nerds) — [Credits](#credits)*
 
 ## Sponsor
 
@@ -121,7 +110,7 @@ Glad you're interested! See [#272](https://github.com/GitSquared/edex-ui/issues/
 #### This is so cool.
 Thanks! If you feel like it, you can [follow me on Twitter](https://gaby.dev/twitter) to hear about new stuff I'm making.
 
-<img width="220" src="https://78.media.tumblr.com/35d4ef4447e0112f776b629bffd99188/tumblr_mk4gf8zvyC1s567uwo1_500.gif" />
+![Cool GIF](https://78.media.tumblr.com/35d4ef4447e0112f776b629bffd99188/tumblr_mk4gf8zvyC1s567uwo1_500.gif)
 
 
 ## Featured in...
