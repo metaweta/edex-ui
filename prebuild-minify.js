@@ -37,14 +37,14 @@ async function recursiveMinify(dirPath) {
                 switch (filePath.split(".").pop()) {
                     case "js":
                         let minified = await UglifyJS.minify(fs.readFileSync(filePath, {encoding: "utf-8"}), {
+                            module: true,
                             compress: {
                                 dead_code: false,
-                                unused: false,
-                                warnings: true
+                                unused: false
                             },
                             output: {
                                 beautify: false,
-                                ecma: 6
+                                ecma: 2020
                             }
                         });
                         if (!minified.error) {
